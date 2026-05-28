@@ -1,4 +1,5 @@
 <?php
+use App\Core\Csrf;
 use App\Core\View;
 ?>
 <section class="home-container">
@@ -36,11 +37,17 @@ use App\Core\View;
       <div class="hero-actions" style="justify-content:flex-start;">
         <?php if ($st === 'rejected' || $st === 'locked' || $st === 'deleted'): ?>
           <!-- <a class="home-btn" href="/contact">Liên hệ hỗ trợ</a> -->
-          <a class="home-btn home-btn-outline" href="/logout">Thoát</a>
+          <form method="post" action="/logout" class="logout-form" style="display:inline-block; margin:0;">
+            <input type="hidden" name="_csrf" value="<?= View::e(Csrf::token()) ?>">
+            <button type="submit" class="home-btn home-btn-outline logout-button">Thoát</button>
+          </form>
         <?php else: ?>
           <a class="home-btn home-btn-outline" href="/services">Xem dịch vụ</a>
           <!-- <a class="home-btn" href="/contact">Liên hệ hỗ trợ</a> -->
-          <a class="home-btn home-btn-outline" href="/logout">Thoát</a>
+          <form method="post" action="/logout" class="logout-form" style="display:inline-block; margin:0;">
+            <input type="hidden" name="_csrf" value="<?= View::e(Csrf::token()) ?>">
+            <button type="submit" class="home-btn home-btn-outline logout-button">Thoát</button>
+          </form>
         <?php endif; ?>
       </div>
     </div>

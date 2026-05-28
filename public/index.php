@@ -22,12 +22,21 @@ if (file_exists($envFile)) {
 }
 
 $config = require __DIR__ . '/../config/app.php';
+$offlineMode = defined('APP_OFFLINE_MODE') && APP_OFFLINE_MODE;
 
 // Secure session cookie settings
 // Only set secure flag if truly HTTPS in production
 $isHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || 
            (!empty($_SERVER['REQUEST_SCHEME']) && $_SERVER['REQUEST_SCHEME'] === 'https') ||
            (isset($_SERVER['SERVER_PORT']) && (int)$_SERVER['SERVER_PORT'] === 443);
+
+ini_set('session.use_strict_mode', '1');
+ini_set('session.use_only_cookies', '1');
+ini_set('session.cookie_httponly', '1');
+ini_set('session.cookie_samesite', 'Lax');
+if ($isHttps) {
+  ini_set('session.cookie_secure', '1');
+}
 
 $cookieParams = [
   'lifetime' => 0,
@@ -40,6 +49,16 @@ $cookieParams = [
 session_name($config['app']['session_name']);
 session_set_cookie_params($cookieParams);
 session_start();
+
+header('X-Frame-Options: SAMEORIGIN');
+header('X-Content-Type-Options: nosniff');
+header('Referrer-Policy: strict-origin-when-cross-origin');
+header('Permissions-Policy: camera=(), microphone=(), geolocation=()');
+if ($offlineMode) {
+  header("Content-Security-Policy: default-src 'self'; base-uri 'self'; frame-ancestors 'self'; object-src 'none'; img-src 'self' data:; frame-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; font-src 'self'; connect-src 'self';");
+} else {
+  header("Content-Security-Policy: default-src 'self'; base-uri 'self'; frame-ancestors 'self'; object-src 'none'; img-src 'self' data: https:; frame-src https://maps.google.com https://www.google.com; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://fonts.googleapis.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://maps.google.com https://www.google.com;");
+}
 
 // Tự tải đơn giản cho namespace App\
 spl_autoload_register(function($class){
@@ -162,6 +181,7 @@ $router->post('/login', [AuthController::class, 'login']);
 $router->get('/admin/login', [AuthController::class, 'showAdminLogin']);
 $router->post('/admin/login', [AuthController::class, 'adminLogin']);
 $router->get('/logout', [AuthController::class, 'logout']);
+$router->post('/logout', [AuthController::class, 'logout']);
 
 // Điều Khoản & Chính Sách
 $router->get('/terms', function() {
@@ -286,17 +306,5 @@ $router->get('/account/edit', [AccountController::class, 'edit']);
 $router->post('/account/edit', [AccountController::class, 'update']);
 $router->get('/account/change-password', [AccountController::class, 'changePassword']);
 $router->post('/account/update-password', [AccountController::class, 'updatePassword']);
-
-// Debug: test endpoint
-$router->get('/test-admin-user-json', function() {
-    header('Content-Type: application/json; charset=utf-8');
-    echo json_encode([
-        'status' => 'ok',
-        'message' => 'Test endpoint working',
-        'auth' => Auth::isAuthenticated() ? 'yes' : 'no',
-        'role' => Auth::role(),
-    ], JSON_UNESCAPED_UNICODE);
-    exit(0);
-});
 
 $router->dispatch();

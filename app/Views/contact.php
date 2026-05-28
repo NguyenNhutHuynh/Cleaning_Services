@@ -554,7 +554,7 @@ use App\Core\View;
             <h2>Gửi tin nhắn</h2>
 
             <?php if ($isAuthenticated): ?>
-                <form method="POST" action="/contact" class="contact-form">
+                <form method="POST" action="/contact" class="contact-form" id="contact-form">
                     <input type="hidden" name="_csrf" value="<?= View::e($csrf) ?>">
 
                     <div class="form-row">
@@ -601,7 +601,7 @@ use App\Core\View;
             <?php endif; ?>
         </div>
 
-        <div class="contact-info-section">
+        <div class="contact-info-section" id="contact-info">
             <div class="contact-info-box">
                 <h3>📞 Điện thoại</h3>
                 <p>0382 583 013</p>

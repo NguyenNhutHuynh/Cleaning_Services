@@ -46,7 +46,7 @@ final class Router
         
         // Global CSRF protection for all POST requests (except webhooks and external APIs)
         $csrfExempt = ['/webhook.php', '/webhook', '/check_status.php', '/migrate_contacts.php'];
-        $skipCsrf = in_array($path, $csrfExempt, true) || str_ends_with($path, '.php');
+        $skipCsrf = in_array($path, $csrfExempt, true);
         
         if ($method === 'POST' && !$skipCsrf) {
             $token = $_POST['_csrf'] ?? ($_SERVER['HTTP_X_CSRF_TOKEN'] ?? null);

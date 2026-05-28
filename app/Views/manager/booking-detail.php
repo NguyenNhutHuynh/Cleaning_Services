@@ -76,7 +76,7 @@ $bookingStatus = (string)($booking['status'] ?? '');
         <input type="hidden" name="return_to" value="/manager/bookings/<?= View::e($booking['id'] ?? '') ?>">
         
         <div style="display: grid; grid-template-columns: 1fr auto; gap: 12px;">
-          <select name="worker_id" required style="padding: 10px; border: 1px solid #dcefe6; border-radius: 6px; background: #fff; color: #1f2d3d;">
+          <select name="worker_id" style="padding: 10px; border: 1px solid #dcefe6; border-radius: 6px; background: #fff; color: #1f2d3d;">
             <option value="">-- Chọn Worker --</option>
             <?php foreach ($workers as $w): ?>
               <option value="<?= View::e($w['id']) ?>" <?= $w['id'] === $assignedWorkerId ? 'selected' : '' ?>>
@@ -84,9 +84,14 @@ $bookingStatus = (string)($booking['status'] ?? '');
               </option>
             <?php endforeach; ?>
           </select>
-          <button type="submit" style="padding: 10px 20px; background: #2eaf7d; color: #fff; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; transition: background 0.2s;">
-            Gán Worker
-          </button>
+          <div style="display:flex; gap:10px; flex-wrap:wrap;">
+            <button type="submit" name="action" value="assign" style="padding: 10px 20px; background: #2eaf7d; color: #fff; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; transition: background 0.2s;">
+              Gán Worker
+            </button>
+            <button type="submit" name="action" value="auto_assign" style="padding: 10px 20px; background: #163a31; color: #fff; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; transition: background 0.2s;">
+              Tự động gán
+            </button>
+          </div>
         </div>
       </form>
     <?php else: ?>

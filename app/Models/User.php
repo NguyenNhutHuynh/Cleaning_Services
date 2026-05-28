@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Models;
 
 use App\Core\DB;
-use PDO;
 use PDOException;
 
 /**
@@ -141,6 +140,90 @@ final class User
         );
         $stmt->execute(['id' => $id]);
         return $stmt->fetch() ?: null;
+    }
+
+    /**
+     * Tìm worker khả dụng nhất cho một booking mới.
+     *
+     * @param string $bookingDate Ngày đặt lịch (YYYY-MM-DD)
+     * @param string $bookingTime Giờ đặt lịch (HH:MM hoặc HH:MM:SS)
+     * @return array|false Mảng dữ liệu worker phù hợp nhất hoặc false nếu không tìm thấy
+     */
+    public static function findAvailableWorker(string $bookingDate, string $bookingTime): array|false
+    {
+        $bookingDate = trim($bookingDate);
+        $bookingTime = trim($bookingTime);
+
+        if ($bookingDate === '' || $bookingTime === '') {
+            return false;
+        }
+
+        $sql = "
+            SELECT
+                u.id,
+                u.name,
+                u.email,
+                u.phone,
+                u.address,
+                u.role,
+                u.approval_status,
+                (
+                    SELECT COUNT(DISTINCT b_count.id)
+                    FROM bookings b_count
+                    LEFT JOIN booking_details bd_count ON bd_count.booking_id = b_count.id
+                    WHERE COALESCE(b_count.assigned_worker_id, bd_count.assigned_worker_id) = u.id
+                      AND b_count.`date` = :count_booking_date
+                      AND LOWER(COALESCE(b_count.status, '')) NOT IN ('cancelled', 'rejected')
+                ) AS job_count
+            FROM users u
+            WHERE LOWER(u.role) = :worker_role
+              AND LOWER(u.approval_status) = :active_status
+              AND NOT EXISTS (
+                  SELECT 1
+                  FROM bookings b_busy
+                  LEFT JOIN booking_details bd_busy ON bd_busy.booking_id = b_busy.id
+                  WHERE COALESCE(b_busy.assigned_worker_id, bd_busy.assigned_worker_id) = u.id
+                    AND b_busy.`date` = :busy_booking_date
+                    AND LOWER(COALESCE(b_busy.status, '')) NOT IN ('cancelled', 'rejected')
+                    AND ABS(
+                        TIMESTAMPDIFF(
+                            MINUTE,
+                            CONCAT(b_busy.`date`, ' ', b_busy.`time`),
+                            CONCAT(:busy_booking_date_time, ' ', :busy_booking_time)
+                        )
+                    ) < :min_gap_minutes
+              )
+            ORDER BY job_count ASC, u.id ASC
+            LIMIT 1
+        ";
+
+        try {
+            $stmt = DB::pdo()->prepare($sql);
+
+            $workerRole = strtolower(self::ROLE_WORKER);
+            $activeStatus = strtolower(self::STATUS_ACTIVE);
+            $countBookingDate = $bookingDate;
+            $busyBookingDate = $bookingDate;
+            $busyBookingDateTime = $bookingDate;
+            $busyBookingTime = $bookingTime;
+            $minGapMinutes = 150;
+
+            $stmt->bindParam(':worker_role', $workerRole, \PDO::PARAM_STR);
+            $stmt->bindParam(':active_status', $activeStatus, \PDO::PARAM_STR);
+            $stmt->bindParam(':count_booking_date', $countBookingDate, \PDO::PARAM_STR);
+            $stmt->bindParam(':busy_booking_date', $busyBookingDate, \PDO::PARAM_STR);
+            $stmt->bindParam(':busy_booking_date_time', $busyBookingDateTime, \PDO::PARAM_STR);
+            $stmt->bindParam(':busy_booking_time', $busyBookingTime, \PDO::PARAM_STR);
+            $stmt->bindParam(':min_gap_minutes', $minGapMinutes, \PDO::PARAM_INT);
+
+            $stmt->execute();
+
+            $worker = $stmt->fetch(\PDO::FETCH_ASSOC);
+            return $worker ?: false;
+        } catch (PDOException $exception) {
+            error_log('User::findAvailableWorker error: ' . $exception->getMessage());
+            return false;
+        }
     }
 
     /**

@@ -152,6 +152,15 @@ final class BookingController
             $lineTotal
         );
 
+        $availableWorker = User::findAvailableWorker($date, $time);
+        if (is_array($availableWorker) && !empty($availableWorker['id'])) {
+            if (Booking::assignWorker($bookingId, (int)$availableWorker['id'])) {
+                error_log('Đã auto-assign thành công');
+            }
+        } else {
+            error_log('Không có nhân viên rảnh, đơn hàng giữ trạng thái Pending');
+        }
+
         // ====================================================================
         // CHUYỂN HƯỚNG TỚI PAYOS CHECKOUT
         // ====================================================================
@@ -184,6 +193,15 @@ final class BookingController
     public function paymentReturn(): void
     {
         $this->requireAuthentication();
+
+        error_log('PAYOS payment return callback: ' . json_encode([
+            'user_id' => Auth::id(),
+            'code' => $_GET['code'] ?? null,
+            'status' => $_GET['status'] ?? null,
+            'payment_success' => $_GET['payment_success'] ?? null,
+            'booking_id' => $_GET['booking_id'] ?? null,
+            'order_code' => $_GET['order_code'] ?? null,
+        ], JSON_UNESCAPED_UNICODE));
 
         $this->syncSuccessfulPaymentFromQuery((int)Auth::id(), $_GET);
         $this->redirect('/bookings');
@@ -453,6 +471,7 @@ final class BookingController
             || (($query['payment_success'] ?? '') === '1');
 
         if (!$isSuccessful) {
+            error_log('PAYOS payment sync skipped: callback not successful');
             return;
         }
 
@@ -473,11 +492,14 @@ final class BookingController
         }
 
         if ($payment === null) {
+            error_log('PAYOS payment sync skipped: no payment transaction found');
             return;
         }
 
         $resolvedBookingId = (int)($payment['booking_id'] ?? 0);
         $resolvedOrderCode = (string)($payment['order_code'] ?? $orderCode);
+
+        error_log("PAYOS payment sync start: booking_id={$resolvedBookingId}, order_code={$resolvedOrderCode}");
 
         PaymentTransaction::updateStatus($resolvedOrderCode, 'paid', [
             'transaction_id' => (string)($query['id'] ?? $query['transactionId'] ?? ''),
@@ -490,6 +512,8 @@ final class BookingController
         if ($resolvedBookingId > 0) {
             Booking::updateStatus($resolvedBookingId, Booking::STATUS_CONFIRMED);
         }
+
+        error_log("PAYOS payment sync done: booking_id={$resolvedBookingId}, order_code={$resolvedOrderCode}");
     }
 
     /**
@@ -517,6 +541,36 @@ final class BookingController
         // ============================================================================
         
         $config = require __DIR__ . '/../../config/app.php';
+        $baseUrl = rtrim((string)($config['app']['base_url'] ?? ''), '/');
+        $offlineMode = defined('APP_OFFLINE_MODE') && APP_OFFLINE_MODE;
+
+        if ($offlineMode) {
+            $paymentCreated = PaymentTransaction::create(
+                $bookingId,
+                $orderCode,
+                (float)$amount,
+                'pending',
+                'TEST_PAYOS_' . $orderCode,
+                PaymentTransaction::METHOD_CUSTOMER_PAYMENT
+            );
+
+            if (!$paymentCreated) {
+                error_log('PAYOS offline mode: failed to create test payment transaction for booking #' . $bookingId);
+                return null;
+            }
+
+            $query = http_build_query([
+                'booking_id' => $bookingId,
+                'order_code' => $orderCode,
+                'code' => '00',
+                'status' => 'PAID',
+                'payment_success' => '1',
+                'test_mode' => '1',
+            ]);
+
+            return '/bookings/payment-return?' . $query;
+        }
+
         $clientId = $config['payos']['client_id'] ?? '';
         $apiKey = $config['payos']['api_key'] ?? '';
         $checksumKey = $config['payos']['checksum_key'] ?? '';
@@ -541,7 +595,7 @@ final class BookingController
         // BƯỚC 3: CHUẨN BỊ DỮ LIỆU GỬI ĐẾN PAYOS
         // ============================================================================
         
-        $baseUrl = 'https://cleaning.id.vn';
+        $baseUrl = $baseUrl !== '' ? $baseUrl : 'https://suasively-metaphoric-gearldine.ngrok-free.dev';
         $description = "DVWA_" . $orderCode . "_" . $bookingId;
         $cancelUrl = $baseUrl . '/bookings';
         $returnUrl = $baseUrl . '/bookings/payment-return?booking_id=' . $bookingId . '&order_code=' . $orderCode;

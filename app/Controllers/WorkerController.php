@@ -5,6 +5,7 @@ namespace App\Controllers;
 
 use App\Core\Auth;
 use App\Core\Csrf;
+use App\Core\UploadHelper;
 use App\Core\View;
 use App\Models\AdminUserMessage;
 use App\Models\AdminWorkerMessage;
@@ -337,31 +338,29 @@ final class WorkerController
         $count = count($_FILES['photos']['name']);
         $hasImage = false;
         for ($index = 0; $index < $count; $index++) {
-            $name = (string)($_FILES['photos']['name'][$index] ?? '');
-            if ($name === '') {
+            $error = (int)($_FILES['photos']['error'][$index] ?? UPLOAD_ERR_NO_FILE);
+            if ($error === UPLOAD_ERR_NO_FILE) {
                 continue;
             }
 
-            $error = (int)($_FILES['photos']['error'][$index] ?? UPLOAD_ERR_NO_FILE);
-            if ($error === UPLOAD_ERR_OK) {
-                $tmpPath = (string)($_FILES['photos']['tmp_name'][$index] ?? '');
-                if ($tmpPath === '') {
-                    continue;
-                }
-
-                $finfo = new \finfo(FILEINFO_MIME_TYPE);
-                $mime = $finfo->file($tmpPath) ?: '';
-                if (!in_array($mime, [
-                    'image/jpeg',
-                    'image/png',
-                    'image/webp',
-                    'image/gif',
-                ], true)) {
-                    return 'Chỉ được tải lên file ảnh (JPG, PNG, WEBP hoặc GIF).';
-                }
-
-                $hasImage = true;
+            if ($error !== UPLOAD_ERR_OK) {
+                return 'Tải ảnh tiến độ thất bại.';
             }
+
+            $file = [
+                'name' => (string)($_FILES['photos']['name'][$index] ?? ''),
+                'type' => (string)($_FILES['photos']['type'][$index] ?? ''),
+                'tmp_name' => (string)($_FILES['photos']['tmp_name'][$index] ?? ''),
+                'error' => $error,
+                'size' => (int)($_FILES['photos']['size'][$index] ?? 0),
+            ];
+
+            $validation = UploadHelper::validateImageUpload($file);
+            if (!($validation['success'] ?? false)) {
+                return (string)($validation['error'] ?? 'Ảnh tiến độ không hợp lệ.');
+            }
+
+            $hasImage = true;
         }
 
         if ($requireAtLeastOne && !$hasImage) {
@@ -625,29 +624,20 @@ final class WorkerController
                 continue;
             }
 
-            $tmpPath = (string)$_FILES['photos']['tmp_name'][$index];
-            $original = (string)$_FILES['photos']['name'][$index];
-
-            // Validate real MIME type using finfo
-            $finfo = new \finfo(FILEINFO_MIME_TYPE);
-            $mime = $finfo->file($tmpPath) ?: '';
-            $mimeMap = [
-                'image/jpeg' => 'jpg',
-                'image/png' => 'png',
-                'image/webp' => 'webp',
-                'image/gif' => 'gif',
+            $file = [
+                'name' => (string)$_FILES['photos']['name'][$index],
+                'type' => (string)$_FILES['photos']['type'][$index],
+                'tmp_name' => (string)$_FILES['photos']['tmp_name'][$index],
+                'error' => (int)$_FILES['photos']['error'][$index],
+                'size' => (int)$_FILES['photos']['size'][$index],
             ];
-            if (!isset($mimeMap[$mime])) {
+
+            $result = UploadHelper::uploadImage($file, $uploadDir);
+            if (!($result['success'] ?? false)) {
                 continue;
             }
 
-            $extension = $mimeMap[$mime];
-
-            $fileName = 'p_' . $progressId . '_' . bin2hex(random_bytes(4)) . '.' . $extension;
-            $targetPath = $uploadDir . '/' . $fileName;
-            if (move_uploaded_file($tmpPath, $targetPath)) {
-                BookingProgress::addPhoto($progressId, '/uploads/progress/' . $fileName);
-            }
+            BookingProgress::addPhoto($progressId, '/' . ltrim((string)$result['path'], '/'));
         }
     }
 

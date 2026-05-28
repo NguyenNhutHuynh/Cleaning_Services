@@ -292,7 +292,10 @@ use App\Core\View;
     const districtSelect = document.getElementById('district');
     const wardSelect = document.getElementById('ward');
     const hcmProvinceCode = '79';
-    const apiUrl = 'https://provinces.open-api.vn/api/p/' + hcmProvinceCode + '?depth=3';
+    const offlineMode = <?= (defined('APP_OFFLINE_MODE') && APP_OFFLINE_MODE) ? 'true' : 'false' ?>;
+    const apiUrl = offlineMode
+      ? '/assets/data/hcm-province.json'
+      : 'https://provinces.open-api.vn/api/p/' + hcmProvinceCode + '?depth=3';
 
     const setSelectState = (select, enabled, placeholder) => {
       select.innerHTML = '';

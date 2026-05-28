@@ -16,6 +16,9 @@ final class AuthController
 {
     // Hằng số kiểm tra độ mạnh mật khẩu
     private const MIN_PASSWORD_LENGTH = 6;
+    private const LOGIN_MAX_ATTEMPTS = 5;
+    private const LOGIN_WINDOW_SECONDS = 15 * 60;
+    private const LOGIN_LOCKOUT_SECONDS = 30 * 60;
 
     // Các vai trò người dùng được phép
     private const ALLOWED_ROLES = ['customer', 'worker'];
@@ -131,19 +134,14 @@ final class AuthController
         $email = trim((string)($_POST['email'] ?? ''));
         $password = (string)($_POST['password'] ?? '');
 
-        // Rate-limit theo IP: tối đa 5 lần trong cửa sổ 15 phút
+        // Rate-limit theo IP + email: tối đa 5 lần trong cửa sổ 15 phút
         $ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
-        $now = time();
-        $window = 15 * 60; // 15 phút
-        $maxAttempts = 5;
-        $attempts = $_SESSION['login_attempts'][$ip] ?? [];
-        // Loại bỏ các attempt cũ
-        $attempts = array_values(array_filter($attempts, static fn($t) => ($t + $window) >= $now));
-        if (count($attempts) >= $maxAttempts) {
+        $throttleError = self::getThrottleError('user_login', $ip, $email);
+        if ($throttleError !== null) {
             $returnTo = self::resolveLoginReturnTo($_SESSION['login_return_to'] ?? null);
             View::render('auth/login', [
                 'csrf' => Csrf::token(),
-                'error' => 'Quá nhiều lần đăng nhập không thành công. Vui lòng thử lại sau.',
+                'error' => $throttleError,
                 'email' => $email,
                 'returnTo' => $returnTo,
                 'contactLoginFlow' => $returnTo === '/contact',
@@ -158,9 +156,7 @@ final class AuthController
         // Kiểm tra mật khẩu và user existence
         $authOk = $user !== null && password_verify($password, $user['password_hash']);
         if (!$authOk) {
-            // Ghi lại lần thử
-            $attempts[] = $now;
-            $_SESSION['login_attempts'][$ip] = $attempts;
+            self::recordLoginFailure('user_login', $ip, $email);
 
             View::render('auth/login', [
                 'csrf' => Csrf::token(),
@@ -177,9 +173,7 @@ final class AuthController
         $accountStatus = (string)($user['approval_status'] ?? User::STATUS_ACTIVE);
         $statusError = self::validateAccountStatus($accountStatus, $user);
         if ($statusError !== null) {
-            // Ghi attempt khi bị chặn
-            $attempts[] = $now;
-            $_SESSION['login_attempts'][$ip] = $attempts;
+            self::recordLoginFailure('user_login', $ip, $email);
 
             View::render('auth/login', [
                 'csrf' => Csrf::token(),
@@ -219,8 +213,8 @@ final class AuthController
         // Đăng nhập người dùng
         Auth::login((int)$user['id'], $userRole);
 
-        // Thành công: xóa bộ đếm attempt cho IP này
-        unset($_SESSION['login_attempts'][$ip]);
+        // Thành công: xóa bộ đếm attempt cho bucket này
+        self::clearLoginThrottle('user_login', $ip, $email);
         unset($_SESSION['login_return_to']);
 
         // Chuyển hướng tới trang điều khiển phù hợp
@@ -297,6 +291,19 @@ final class AuthController
         $email = trim((string)($_POST['email'] ?? ''));
         $password = (string)($_POST['password'] ?? '');
         $loginType = trim((string)($_POST['login_type'] ?? 'admin'));
+
+        $ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+        $throttleError = self::getThrottleError('admin_login:' . $loginType, $ip, $email);
+        if ($throttleError !== null) {
+            View::render('auth/admin-login', [
+                'csrf' => Csrf::token(),
+                'error' => $throttleError,
+                'email' => $email,
+                'hideChrome' => true,
+                'loginType' => $loginType,
+            ]);
+            return;
+        }
         
         // Validate login type
         if (!in_array($loginType, ['admin', 'manager'], true)) {
@@ -308,6 +315,8 @@ final class AuthController
         
         // Check if user exists and password is correct
         if ($user === null || !password_verify($password, $user['password_hash'])) {
+            self::recordLoginFailure('admin_login:' . $loginType, $ip, $email);
+
             View::render('auth/admin-login', [
                 'csrf' => Csrf::token(),
                 'error' => 'Email hoặc mật khẩu không chính xác.',
@@ -324,6 +333,7 @@ final class AuthController
         // Validate role based on login type
         if ($loginType === 'admin') {
             if ($userRole !== User::ROLE_ADMIN) {
+                self::recordLoginFailure('admin_login:' . $loginType, $ip, $email);
                 View::render('auth/admin-login', [
                     'csrf' => Csrf::token(),
                     'error' => 'Tài khoản này không có quyền đăng nhập vào khu vực quản trị Admin. Chỉ tài khoản Admin mới có thể đăng nhập ở đây.',
@@ -335,6 +345,7 @@ final class AuthController
             }
         } elseif ($loginType === 'manager') {
             if ($userRole !== User::ROLE_MANAGER && $userRole !== User::ROLE_ADMIN) {
+                self::recordLoginFailure('admin_login:' . $loginType, $ip, $email);
                 View::render('auth/admin-login', [
                     'csrf' => Csrf::token(),
                     'error' => 'Tài khoản này không có quyền đăng nhập vào khu vực quản lý. Chỉ tài khoản Manager hoặc Admin mới có thể đăng nhập ở đây.',
@@ -350,6 +361,7 @@ final class AuthController
         $accountStatus = (string)($user['approval_status'] ?? User::STATUS_ACTIVE);
         $statusError = self::validateAccountStatus($accountStatus, $user);
         if ($statusError !== null) {
+            self::recordLoginFailure('admin_login:' . $loginType, $ip, $email);
             View::render('auth/admin-login', [
                 'csrf' => Csrf::token(),
                 'error' => 'Tài khoản này không thể đăng nhập. ' . $statusError,
@@ -364,6 +376,7 @@ final class AuthController
         Auth::login((int)$user['id'], $userRole);
         unset($_SESSION['admin_login_verified']);
         unset($_SESSION['admin_login_verified_time']);
+        self::clearLoginThrottle('admin_login:' . $loginType, $ip, $email);
         
         // Redirect based on role
         if ($userRole === User::ROLE_ADMIN) {
@@ -382,18 +395,127 @@ final class AuthController
      */
     public static function logout(): void
     {
-        $currentRole = Auth::role();
-        $redirectUrl = '/';
+        if (!Auth::isAuthenticated()) {
+            self::redirect('/');
+        }
 
-        // Manager và Admin đăng xuất về trang đăng nhập quản lý
-        if ($currentRole === User::ROLE_ADMIN || $currentRole === User::ROLE_MANAGER) {
-            $config = require __DIR__ . '/../../config/app.php';
-            $adminKey = $config['admin']['login_key'] ?? 'admin-secret-key-2024';
-            $redirectUrl = '/admin/login?key=' . urlencode((string)$adminKey);
+        if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') {
+            View::render('auth/logout-confirm', [
+                'csrf' => Csrf::token(),
+                'role' => Auth::role(),
+            ]);
+            return;
         }
 
         Auth::logout();
-        self::redirect($redirectUrl);
+        self::redirect('/');
+    }
+
+    /**
+     * Kiểm tra một bucket login có đang bị khóa tạm thời không.
+     */
+    private static function getThrottleError(string $scope, string $ip, string $identifier): ?string
+    {
+        $state = self::getThrottleState($scope, $ip, $identifier);
+        $now = time();
+
+        if (($state['locked_until'] ?? 0) > $now) {
+            return 'Quá nhiều lần đăng nhập không thành công. Vui lòng thử lại sau.';
+        }
+
+        $attempts = self::pruneAttempts((array)($state['attempts'] ?? []), $now);
+        if (count($attempts) >= self::LOGIN_MAX_ATTEMPTS) {
+            self::storeThrottleState($scope, $ip, $identifier, [
+                'attempts' => $attempts,
+                'locked_until' => $now + self::LOGIN_LOCKOUT_SECONDS,
+            ]);
+
+            return 'Quá nhiều lần đăng nhập không thành công. Vui lòng thử lại sau.';
+        }
+
+        self::storeThrottleState($scope, $ip, $identifier, [
+            'attempts' => $attempts,
+            'locked_until' => 0,
+        ]);
+
+        return null;
+    }
+
+    /**
+     * Ghi nhận một lần đăng nhập thất bại.
+     */
+    private static function recordLoginFailure(string $scope, string $ip, string $identifier): void
+    {
+        $state = self::getThrottleState($scope, $ip, $identifier);
+        $now = time();
+        $attempts = self::pruneAttempts((array)($state['attempts'] ?? []), $now);
+        $attempts[] = $now;
+
+        $lockedUntil = (int)($state['locked_until'] ?? 0);
+        if (count($attempts) >= self::LOGIN_MAX_ATTEMPTS) {
+            $lockedUntil = $now + self::LOGIN_LOCKOUT_SECONDS;
+        }
+
+        self::storeThrottleState($scope, $ip, $identifier, [
+            'attempts' => $attempts,
+            'locked_until' => $lockedUntil,
+        ]);
+    }
+
+    /**
+     * Xóa throttle bucket sau khi đăng nhập thành công.
+     */
+    private static function clearLoginThrottle(string $scope, string $ip, string $identifier): void
+    {
+        $bucket = self::makeThrottleBucket($scope, $ip, $identifier);
+        unset($_SESSION['login_throttle'][$bucket]);
+    }
+
+    /**
+     * Lấy trạng thái throttle hiện tại của một bucket.
+     */
+    private static function getThrottleState(string $scope, string $ip, string $identifier): array
+    {
+        $bucket = self::makeThrottleBucket($scope, $ip, $identifier);
+        $state = $_SESSION['login_throttle'][$bucket] ?? null;
+
+        return is_array($state) ? $state : [
+            'attempts' => [],
+            'locked_until' => 0,
+        ];
+    }
+
+    /**
+     * Lưu trạng thái throttle.
+     */
+    private static function storeThrottleState(string $scope, string $ip, string $identifier, array $state): void
+    {
+        $bucket = self::makeThrottleBucket($scope, $ip, $identifier);
+        $_SESSION['login_throttle'][$bucket] = [
+            'attempts' => array_values($state['attempts'] ?? []),
+            'locked_until' => (int)($state['locked_until'] ?? 0),
+            'updated_at' => time(),
+        ];
+    }
+
+    /**
+     * Tạo khóa throttle ổn định theo scope + IP + email.
+     */
+    private static function makeThrottleBucket(string $scope, string $ip, string $identifier): string
+    {
+        $normalizedIdentifier = strtolower(trim($identifier));
+        return hash('sha256', strtolower($scope) . '|' . strtolower(trim($ip)) . '|' . $normalizedIdentifier);
+    }
+
+    /**
+     * Loại bỏ các lần thử cũ ngoài cửa sổ cho phép.
+     */
+    private static function pruneAttempts(array $attempts, int $now): array
+    {
+        return array_values(array_filter(
+            array_map('intval', $attempts),
+            static fn(int $timestamp): bool => ($timestamp + self::LOGIN_WINDOW_SECONDS) >= $now
+        ));
     }
 
     /**

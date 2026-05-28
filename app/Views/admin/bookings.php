@@ -813,9 +813,14 @@ $bookingStatusMap = [
                           <?php endforeach; ?>
                         </select>
 
-                        <button class="home-btn" type="submit" <?= $isCustomerPaid ? '' : 'disabled' ?>>
-                          Gán
-                        </button>
+                        <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                          <button class="home-btn" type="submit" name="action" value="assign" <?= $isCustomerPaid ? '' : 'disabled' ?>>
+                            Gán
+                          </button>
+                          <button class="home-btn home-btn-outline" type="submit" name="action" value="auto_assign" <?= $isCustomerPaid ? '' : 'disabled' ?>>
+                            Tự động gán
+                          </button>
+                        </div>
                       </form>
 
                       <?php if (empty($b['assigned_worker_id'])): ?>

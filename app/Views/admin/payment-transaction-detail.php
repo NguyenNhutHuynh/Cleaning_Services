@@ -258,7 +258,7 @@ $rawDisplay = $prettyRaw !== '' ? $prettyRaw : ($rawData !== '' ? $rawData : 'Ch
 <section class="home-container admin-payment-detail">
   <header class="home-hero payment-hero">
     <p class="home-kicker">ADMIN • GIAO DỊCH</p>
-    <h1>Giao dịch #<?= (int)($transaction['id'] ?? 0) ?></h1>
+    <h1>Đơn hàng #<?= (int)($booking['id'] ?? 0) ?></h1>
     <p>Thông tin thanh toán của khách hàng được ghi nhận từ PayOS.</p>
     <div class="hero-actions">
       <?php if (!empty($booking['id'])): ?>

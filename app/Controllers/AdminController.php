@@ -6,6 +6,9 @@ namespace App\Controllers;
 
 use App\Core\Auth;
 use App\Core\Csrf;
+use App\Core\DB;
+use App\Core\PermissionHelper;
+use App\Core\UploadHelper;
 use App\Core\View;
 use App\Models\Booking;
 use App\Models\AdminWorkerMessage;
@@ -19,6 +22,7 @@ use App\Models\Contact;
 use App\Models\PaymentTransaction;
 use App\Models\Service;
 use App\Models\User;
+use App\Services\AutoAssignWorkerService;
 
 /**
  * AdminController xử lý các nghiệp vụ quản trị cho người dùng, đơn đặt và dịch vụ.
@@ -27,7 +31,7 @@ use App\Models\User;
 final class AdminController
 {
     private const MAX_AVATAR_SIZE = 5 * 1024 * 1024;
-    private const ALLOWED_AVATAR_EXTENSIONS = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+    private const ALLOWED_AVATAR_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp'];
     
     private const MAX_SERVICE_IMAGE_SIZE = 10 * 1024 * 1024; // 10MB
     private const ALLOWED_SERVICE_IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp'];
@@ -729,12 +733,18 @@ final class AdminController
 
         $bookingId = (int)($_POST['id'] ?? 0);
         $workerId = (int)($_POST['worker_id'] ?? 0);
+        $action = trim((string)($_POST['action'] ?? 'assign'));
         $returnTo = trim((string)($_POST['return_to'] ?? ''));
         $redirectTo = ($returnTo !== '' && str_starts_with($returnTo, '/admin/bookings'))
             ? $returnTo
             : '/admin/bookings';
 
-        if ($bookingId <= 0 || $workerId <= 0) {
+        if ($bookingId <= 0) {
+            $this->redirect($redirectTo);
+        }
+
+        if ($action !== 'auto_assign' && $workerId <= 0) {
+            $this->setSessionMessage('error', 'Vui lòng chọn worker trước khi gán.');
             $this->redirect($redirectTo);
         }
 
@@ -744,7 +754,36 @@ final class AdminController
             $this->redirect($redirectTo);
         }
 
+        if (!PermissionHelper::canAssignWorker((int)Auth::id(), (string)Auth::role(), $bookingId)) {
+            $this->setSessionMessage('error', 'Bạn không có quyền phân công đơn đặt này.');
+            $this->redirect($redirectTo);
+        }
+
         $worker = User::findById($workerId);
+
+        if (!PaymentTransaction::hasSuccessfulCustomerPayment($bookingId)) {
+            $this->setSessionMessage('error', 'Khách hàng chưa thanh toán đơn này. Chỉ được gán worker sau khi thanh toán thành công.');
+            $this->redirect($redirectTo);
+        }
+
+        if ($action === 'auto_assign' || $workerId <= 0) {
+            $service = new AutoAssignWorkerService(DB::pdo());
+            $result = $service->autoAssign($bookingId, (int)Auth::id(), (string)Auth::role());
+            if (!($result['success'] ?? false)) {
+                $reasons = array_values(array_filter((array)($result['reasons'] ?? [])));
+                $message = (string)($result['message'] ?? 'Không thể tự động phân công worker.');
+                if ($reasons !== []) {
+                    $message .= ' ' . implode(' | ', array_map('strval', $reasons));
+                }
+
+                $this->setSessionMessage('error', $message);
+                $this->redirect($redirectTo);
+            }
+
+            $this->setSessionMessage('success', 'Đã tự động phân công worker #' . (int)($result['worker_id'] ?? 0) . '.');
+            $this->redirect($redirectTo);
+        }
+
         if (
             $worker === null
             || ($worker['role'] ?? '') !== User::ROLE_WORKER
@@ -754,20 +793,44 @@ final class AdminController
             $this->redirect($redirectTo);
         }
 
-        if (!PaymentTransaction::hasSuccessfulCustomerPayment($bookingId)) {
-            $this->setSessionMessage('error', 'Khách hàng chưa thanh toán đơn này. Chỉ được gán worker sau khi thanh toán thành công.');
-            $this->redirect($redirectTo);
-        }
+        $pdo = DB::pdo();
+        try {
+            $pdo->beginTransaction();
 
-        $assigned = Booking::assignWorker($bookingId, $workerId);
-        if (!$assigned) {
-            $this->setSessionMessage('error', 'Không thể phân công worker cho đơn này.');
-            $this->redirect($redirectTo);
-        }
+            $currentBooking = Booking::getById($bookingId);
+            if ($currentBooking === null) {
+                throw new \RuntimeException('Không tìm thấy đơn đặt cần phân công.');
+            }
 
-        $currentStatus = (string)($booking['status'] ?? Booking::STATUS_PENDING);
-        if (in_array($currentStatus, [Booking::STATUS_PENDING, Booking::STATUS_CONFIRMED], true)) {
-            Booking::updateStatus($bookingId, Booking::STATUS_CONFIRMED);
+            $assignmentService = new AutoAssignWorkerService($pdo);
+            $bookingWindow = $assignmentService->buildBookingWindow($currentBooking);
+
+            if (!PaymentTransaction::hasSuccessfulCustomerPayment($bookingId)) {
+                throw new \RuntimeException('Khách hàng chưa thanh toán đơn này. Chỉ được gán worker sau khi thanh toán thành công.');
+            }
+
+            if (!$assignmentService->isWorkerAvailable($workerId, $bookingWindow['start'], $bookingWindow['end'], $bookingId)) {
+                throw new \RuntimeException('Worker này đang bận trong khung giờ của đơn đặt.');
+            }
+
+            $assigned = Booking::assignWorker($bookingId, $workerId);
+            if (!$assigned) {
+                throw new \RuntimeException('Không thể phân công worker cho đơn này.');
+            }
+
+            $currentStatus = (string)($currentBooking['status'] ?? Booking::STATUS_PENDING);
+            if (in_array($currentStatus, [Booking::STATUS_PENDING, Booking::STATUS_CONFIRMED], true)) {
+                Booking::updateStatus($bookingId, Booking::STATUS_CONFIRMED);
+            }
+
+            $pdo->commit();
+        } catch (\Throwable $exception) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+
+            $this->setSessionMessage('error', $exception->getMessage());
+            $this->redirect($redirectTo);
         }
 
         $this->setSessionMessage('success', 'Đã phân công worker #' . $workerId . '. Đơn đã sẵn sàng để worker nhận việc.');
@@ -952,29 +1015,16 @@ final class AdminController
 
     private function handleAvatarUpload(int $userId): ?string
     {
-        $file = $_FILES['avatar'];
+        $result = UploadHelper::uploadImage(
+            (array)($_FILES['avatar'] ?? []),
+            dirname(__DIR__, 2) . '/public/uploads/avatars'
+        );
 
-        if (($file['error'] ?? UPLOAD_ERR_OK) !== UPLOAD_ERR_OK) {
-            return 'Tải ảnh đại diện lên thất bại.';
+        if (!($result['success'] ?? false)) {
+            return (string)($result['error'] ?? 'Tải ảnh đại diện lên thất bại.');
         }
 
-        if (($file['size'] ?? 0) > self::MAX_AVATAR_SIZE) {
-            return 'Ảnh đại diện vượt quá giới hạn 2MB.';
-        }
-
-        $extension = $this->getValidatedImageExtension($file);
-        if ($extension === null) {
-            return 'Định dạng ảnh đại diện không hợp lệ. Chỉ chấp nhận: jpg, png, gif, webp.';
-        }
-
-        $filename = $this->generateAvatarFilename($userId, $extension);
-        $filePath = $this->getAvatarDirectory() . '/' . $filename;
-
-        if (!@move_uploaded_file((string)$file['tmp_name'], $filePath)) {
-            return 'Không thể lưu tệp ảnh đại diện.';
-        }
-
-        User::updateAvatar($userId, '/uploads/avatars/' . $filename);
+        User::updateAvatar($userId, '/' . ltrim((string)$result['path'], '/'));
         return null;
     }
 
@@ -990,7 +1040,6 @@ final class AdminController
             $mimeMap = [
                 'image/jpeg' => 'jpg',
                 'image/png' => 'png',
-                'image/gif' => 'gif',
                 'image/webp' => 'webp',
             ];
             $mimeType = strtolower((string)$imageInfo['mime']);
@@ -1002,6 +1051,7 @@ final class AdminController
 
     private function generateAvatarFilename(int $userId, string $extension): string
     {
+        $extension = strtolower(trim($extension));
         return sprintf('u%d_%d_%s.%s', $userId, time(), bin2hex(random_bytes(4)), $extension);
     }
 
@@ -1021,31 +1071,22 @@ final class AdminController
 
     private function handleServiceImageUpload(int $serviceId): ?string
     {
-        $file = $_FILES['service_image'] ?? [];
-        
+        $file = (array)($_FILES['service_image'] ?? []);
+
         if (empty($file['name'])) {
             return null;
         }
-        
-        $fileSize = (int)($file['size'] ?? 0);
-        if ($fileSize > self::MAX_SERVICE_IMAGE_SIZE) {
-            return 'Ảnh quá lớn. Tối đa 5MB.';
+
+        $result = UploadHelper::uploadImage(
+            $file,
+            dirname(__DIR__, 2) . '/public/uploads/services'
+        );
+
+        if (!($result['success'] ?? false)) {
+            return (string)($result['error'] ?? 'Không thể lưu tệp ảnh dịch vụ.');
         }
-        
-        $extension = $this->getValidatedServiceImageExtension($file);
-        if ($extension === null) {
-            return 'Định dạng ảnh không được hỗ trợ. Hỗ trợ: JPG, PNG, WebP.';
-        }
-        
-        $uploadDir = $this->getServiceImageDirectory();
-        $filename = $this->generateServiceImageFilename($serviceId, $extension);
-        $filePath = $uploadDir . '/' . $filename;
-        
-        if (!@move_uploaded_file((string)$file['tmp_name'], $filePath)) {
-            return 'Không thể lưu tệp ảnh dịch vụ.';
-        }
-        
-        Service::updateImage($serviceId, '/uploads/services/' . $filename);
+
+        Service::updateImage($serviceId, '/' . ltrim((string)$result['path'], '/'));
         return null;
     }
 
@@ -1072,6 +1113,7 @@ final class AdminController
 
     private function generateServiceImageFilename(int $serviceId, string $extension): string
     {
+        $extension = strtolower(trim($extension));
         return sprintf('service_%d_%d_%s.%s', $serviceId, time(), bin2hex(random_bytes(4)), $extension);
     }
 

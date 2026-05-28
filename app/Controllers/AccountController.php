@@ -5,6 +5,7 @@ namespace App\Controllers;
 
 use App\Core\Auth;
 use App\Core\Csrf;
+use App\Core\UploadHelper;
 use App\Core\View;
 use App\Models\User;
 
@@ -226,7 +227,7 @@ final class AccountController
 
     /**
      * Xử lý tải lên ảnh đại diện từ request POST.
-     * Kiểm tra kích thước file (tối đa 2MB), định dạng (jpg/png/gif/webp),
+    * Kiểm tra kích thước file (tối đa 2MB), định dạng (jpg/png/webp),
      * và lưu vào thư mục upload.
      *
      * @param int $uid ID người dùng dùng để tạo tên file avatar
@@ -238,37 +239,16 @@ final class AccountController
             return null;
         }
 
-        $file = $_FILES['avatar'];
+        $result = UploadHelper::uploadImage(
+            (array)($_FILES['avatar'] ?? []),
+            dirname(__DIR__, 2) . '/public/uploads/avatars'
+        );
 
-        if (($file['error'] ?? UPLOAD_ERR_OK) !== UPLOAD_ERR_OK) {
-            return 'Tải lên ảnh đại diện thất bại.';
+        if (!($result['success'] ?? false)) {
+            return (string)($result['error'] ?? 'Không thể lưu ảnh đại diện.');
         }
 
-        if (($file['size'] ?? 0) > 2 * 1024 * 1024) {
-            return 'Ảnh đại diện vượt quá 2MB.';
-        }
-
-        $ext = $this->getValidatedImageExtension((string)$file['name'], $file['tmp_name']);
-        if (!$ext) {
-            return 'Ảnh đại diện không hợp lệ (chỉ jpg/png/gif/webp).';
-        }
-
-        $root = dirname(__DIR__, 2);
-        $dir = $root . '/public/uploads/avatars';
-        if (!is_dir($dir)) {
-            @mkdir($dir, 0777, true);
-        }
-
-        $base = 'u' . $uid . '_' . time() . '_' . bin2hex(random_bytes(4));
-        $safeFile = $base . '.' . $ext;
-        $dest = $dir . '/' . $safeFile;
-
-        if (!@move_uploaded_file($file['tmp_name'], $dest)) {
-            return 'Không thể lưu ảnh đại diện.';
-        }
-
-        $webPath = '/uploads/avatars/' . $safeFile;
-        User::updateAvatar($uid, $webPath);
+        User::updateAvatar($uid, '/' . ltrim((string)$result['path'], '/'));
 
         return null;
     }
@@ -279,11 +259,11 @@ final class AccountController
      *
      * @param string $filename Tên file gốc khi tải lên
      * @param string $tmpPath Đường dẫn file tạm để dò MIME
-     * @return string|null Đuôi file hợp lệ (jpg, png, gif, webp) hoặc null nếu không hợp lệ
+      * @return string|null Đuôi file hợp lệ (jpg, png, webp) hoặc null nếu không hợp lệ
      */
     private function getValidatedImageExtension(string $filename, string $tmpPath): ?string
     {
-        $allowedExt = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+          $allowedExt = ['jpg', 'jpeg', 'png', 'webp'];
         $ext = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
 
         if (in_array($ext, $allowedExt, true)) {
@@ -292,7 +272,7 @@ final class AccountController
 
         $imgInfo = @getimagesize($tmpPath);
         $mime = is_array($imgInfo) && isset($imgInfo['mime']) ? strtolower($imgInfo['mime']) : '';
-        $mimeMap = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/gif' => 'gif', 'image/webp' => 'webp'];
+        $mimeMap = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp'];
 
         return $mimeMap[$mime] ?? null;
     }

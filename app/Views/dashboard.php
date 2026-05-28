@@ -1,5 +1,6 @@
 <?php
 use App\Core\Auth;
+use App\Core\Csrf;
 use App\Core\View;
 use App\Models\User;
 ?>
@@ -75,7 +76,10 @@ use App\Models\User;
           <?php elseif ($role === 'customer'): ?>
             <a href="/customer/messages" role="menuitem">Tin nhắn</a>
           <?php endif; ?>
-          <a href="/logout" role="menuitem">Đăng xuất</a>
+          <form method="post" action="/logout" class="logout-form">
+            <input type="hidden" name="_csrf" value="<?= View::e(Csrf::token()) ?>">
+            <button type="submit" role="menuitem" class="logout-button">Đăng xuất</button>
+          </form>
         </div>
       </div>
     <?php else: ?>

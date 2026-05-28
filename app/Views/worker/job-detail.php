@@ -28,6 +28,7 @@ $currentIndex = $latestStep === null || $latestStep === '' ? -1 : array_search($
 $nextIndex = ($currentIndex === false) ? 0 : $currentIndex + 1;
 $nextStep = $progressKeys[$nextIndex] ?? null;
 $progressLocked = $nextStep === null;
+$offlineMode = defined('APP_OFFLINE_MODE') && APP_OFFLINE_MODE;
 ?>
 
 <style>
@@ -562,7 +563,7 @@ $progressLocked = $nextStep === null;
       </div>
 
       <div class="map-actions">
-        <button type="button" onclick="openGoogleDirections()" class="map-icon-btn" title="Mở chỉ đường trên Google Maps">📍</button>
+        <button type="button" onclick="openGoogleDirections()" class="map-icon-btn" title="<?= $offlineMode ? 'Xem chỉ đường nội bộ' : 'Mở chỉ đường trên Google Maps' ?>">📍</button>
         <button type="button" onclick="updateMap()" class="map-icon-btn secondary" title="Làm mới bản đồ vị trí khách">🗺️</button>
       </div>
 
@@ -577,6 +578,7 @@ $progressLocked = $nextStep === null;
 
       <script>
         var currentCoords = null;
+        var offlineMode = <?= $offlineMode ? 'true' : 'false' ?>;
 
         function setCurrentLocationStatus(text) {
           var node = document.getElementById('currentLocationStatus');
@@ -629,6 +631,11 @@ $progressLocked = $nextStep === null;
           var customerAddr = getCustomerAddress();
           if (!customerAddr) return;
 
+          if (offlineMode) {
+            alert('Chế độ test nội bộ: không mở Google Maps.\nĐịa chỉ khách hàng: ' + customerAddr);
+            return;
+          }
+
           getCurrentCoords(function(coords) {
             var origin = coords ? (coords.lat + ',' + coords.lng) : 'current location';
             var directionsUrl = 'https://www.google.com/maps/dir/?api=1&origin=' + encodeURIComponent(origin) +
@@ -643,6 +650,11 @@ $progressLocked = $nextStep === null;
 
           if (!customerAddr) {
             mapContainer.innerHTML = '<p style="padding:20px;color:#78909c;text-align:center;">Chưa có địa chỉ</p>';
+            return;
+          }
+
+          if (offlineMode) {
+            mapContainer.innerHTML = '<div class="map-placeholder" style="padding:24px; min-height: 280px; display:flex; align-items:center; justify-content:center; text-align:center; border:1px dashed #dcefe6; border-radius:18px; background: linear-gradient(135deg, #f7fdf9 0%, #ffffff 100%);"><div><div style="font-size: 28px; margin-bottom: 8px;">🗺️</div><div style="font-weight: 800; color: #1f2d3d; margin-bottom: 6px;">Chế độ test nội bộ</div><div style="color:#546e7a; line-height:1.6;">Không hiển thị Google Maps khi đang test local.<br>Địa chỉ khách hàng: ' + customerAddr + '</div></div></div>';
             return;
           }
 

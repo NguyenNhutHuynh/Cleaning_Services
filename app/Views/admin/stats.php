@@ -29,6 +29,12 @@ $paymentStatusLabels = [
     <button class="home-btn home-btn-outline" id="refreshBtn">🔄 Làm mới</button>
   </div>
 
+  <?php if (defined('APP_OFFLINE_MODE') && APP_OFFLINE_MODE): ?>
+    <div style="margin-top:16px;padding:14px 16px;border:1px dashed #d9efe5;border-radius:12px;background:#f7fdf9;color:#546e7a;">
+      Chế độ test nội bộ đang bật, nên biểu đồ/PDF dùng thư viện ngoài đã được tắt.
+    </div>
+  <?php endif; ?>
+
   <section class="stats-group">
     <div class="stats-group-head stats-group-head-overview">
       <h2>Tổng quan hệ thống</h2>
@@ -387,15 +393,27 @@ $paymentStatusLabels = [
   </section>
 </section>
 
+<?php if (!(defined('APP_OFFLINE_MODE') && APP_OFFLINE_MODE)): ?>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<?php endif; ?>
 
 <script>
 (function() {
   'use strict';
 
   const statsData = <?= json_encode($stats) ?>;
+  const offlineMode = <?= (defined('APP_OFFLINE_MODE') && APP_OFFLINE_MODE) ? 'true' : 'false' ?>;
+
+  if (offlineMode || typeof Chart === 'undefined' || typeof html2canvas === 'undefined' || !window.jspdf) {
+    const exportButton = document.getElementById('exportPdfBtn');
+    if (exportButton) {
+      exportButton.disabled = true;
+      exportButton.title = 'Chế độ test nội bộ không hỗ trợ xuất PDF';
+    }
+    return;
+  }
 
   const colors = {
     primary: '#2eaf7d',

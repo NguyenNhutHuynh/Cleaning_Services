@@ -534,7 +534,7 @@ $bookingStatusLabel = $bookingStatusMap[$bookingStatus] ?? 'Không rõ';
           <input type="hidden" name="id" value="<?= (int)($booking['id'] ?? 0) ?>">
           <input type="hidden" name="return_to" value="/admin/bookings/<?= (int)($booking['id'] ?? 0) ?>">
 
-          <select name="worker_id" required class="worker-select" <?= $isCustomerPaid ? '' : 'disabled' ?>>
+          <select name="worker_id" class="worker-select" <?= $isCustomerPaid ? '' : 'disabled' ?>>
             <option value="">-- Chọn worker --</option>
             <?php foreach (($workers ?? []) as $worker): ?>
               <option value="<?= (int)$worker['id'] ?>" <?= $assignedWorkerId === (int)$worker['id'] ? 'selected' : '' ?>>
@@ -543,7 +543,10 @@ $bookingStatusLabel = $bookingStatusMap[$bookingStatus] ?? 'Không rõ';
             <?php endforeach; ?>
           </select>
 
-          <button class="home-btn home-btn-outline" type="submit" <?= $isCustomerPaid ? '' : 'disabled' ?>>Gán worker</button>
+          <div style="display:flex; gap:10px; flex-wrap:wrap;">
+            <button class="home-btn home-btn-outline" type="submit" name="action" value="assign" <?= $isCustomerPaid ? '' : 'disabled' ?>>Gán worker</button>
+            <button class="home-btn" type="submit" name="action" value="auto_assign" <?= $isCustomerPaid ? '' : 'disabled' ?>>Tự động gán</button>
+          </div>
         </form>
 
         <?php if (!$isCustomerPaid): ?>

@@ -6,6 +6,8 @@ namespace App\Controllers\Manager;
 
 use App\Core\Auth;
 use App\Core\Csrf;
+use App\Core\DB;
+use App\Core\PermissionHelper;
 use App\Core\View;
 use App\Models\Booking;
 use App\Models\BookingMessage;
@@ -15,6 +17,7 @@ use App\Models\BookingReport;
 use App\Models\BookingReview;
 use App\Models\PaymentTransaction;
 use App\Models\User;
+use App\Services\AutoAssignWorkerService;
 
 /**
  * ManagerController - Xử lý các nghiệp vụ quản trị dành cho Manager.
@@ -131,12 +134,18 @@ final class ManagerController extends BaseManagerController
 
         $bookingId = (int)($_POST['id'] ?? 0);
         $workerId = (int)($_POST['worker_id'] ?? 0);
+        $action = trim((string)($_POST['action'] ?? 'assign'));
         $returnTo = trim((string)($_POST['return_to'] ?? ''));
         $redirectTo = ($returnTo !== '' && str_starts_with($returnTo, '/manager/bookings'))
             ? $returnTo
             : '/manager/bookings';
 
-        if ($bookingId <= 0 || $workerId <= 0) {
+        if ($bookingId <= 0) {
+            $this->redirect($redirectTo);
+        }
+
+        if ($action !== 'auto_assign' && $workerId <= 0) {
+            $this->setSessionMessage('error', 'Vui lòng chọn worker trước khi gán.');
             $this->redirect($redirectTo);
         }
 
@@ -146,7 +155,36 @@ final class ManagerController extends BaseManagerController
             $this->redirect($redirectTo);
         }
 
+        if (!PermissionHelper::canAssignWorker((int)Auth::id(), (string)Auth::role(), $bookingId)) {
+            $this->setSessionMessage('error', 'Bạn không có quyền phân công đơn đặt này.');
+            $this->redirect($redirectTo);
+        }
+
         $worker = User::findById($workerId);
+
+        if (!PaymentTransaction::hasSuccessfulCustomerPayment($bookingId)) {
+            $this->setSessionMessage('error', 'Khách hàng chưa thanh toán đơn này. Chỉ được gán worker sau khi thanh toán thành công.');
+            $this->redirect($redirectTo);
+        }
+
+        if ($action === 'auto_assign' || $workerId <= 0) {
+            $service = new AutoAssignWorkerService(DB::pdo());
+            $result = $service->autoAssign($bookingId, (int)Auth::id(), (string)Auth::role());
+            if (!($result['success'] ?? false)) {
+                $reasons = array_values(array_filter((array)($result['reasons'] ?? [])));
+                $message = (string)($result['message'] ?? 'Không thể tự động phân công worker.');
+                if ($reasons !== []) {
+                    $message .= ' ' . implode(' | ', array_map('strval', $reasons));
+                }
+
+                $this->setSessionMessage('error', $message);
+                $this->redirect($redirectTo);
+            }
+
+            $this->setSessionMessage('success', 'Đã tự động phân công worker #' . (int)($result['worker_id'] ?? 0) . '.');
+            $this->redirect($redirectTo);
+        }
+
         if (
             $worker === null
             || ($worker['role'] ?? '') !== User::ROLE_WORKER
@@ -156,20 +194,44 @@ final class ManagerController extends BaseManagerController
             $this->redirect($redirectTo);
         }
 
-        if (!PaymentTransaction::hasSuccessfulCustomerPayment($bookingId)) {
-            $this->setSessionMessage('error', 'Khách hàng chưa thanh toán đơn này. Chỉ được gán worker sau khi thanh toán thành công.');
-            $this->redirect($redirectTo);
-        }
+        $pdo = DB::pdo();
+        try {
+            $pdo->beginTransaction();
 
-        $assigned = Booking::assignWorker($bookingId, $workerId);
-        if (!$assigned) {
-            $this->setSessionMessage('error', 'Không thể phân công worker cho đơn này.');
-            $this->redirect($redirectTo);
-        }
+            $currentBooking = Booking::getById($bookingId);
+            if ($currentBooking === null) {
+                throw new \RuntimeException('Không tìm thấy đơn đặt cần phân công.');
+            }
 
-        $currentStatus = (string)($booking['status'] ?? Booking::STATUS_PENDING);
-        if (in_array($currentStatus, [Booking::STATUS_PENDING, Booking::STATUS_CONFIRMED], true)) {
-            Booking::updateStatus($bookingId, Booking::STATUS_CONFIRMED);
+            $assignmentService = new AutoAssignWorkerService($pdo);
+            $bookingWindow = $assignmentService->buildBookingWindow($currentBooking);
+
+            if (!PaymentTransaction::hasSuccessfulCustomerPayment($bookingId)) {
+                throw new \RuntimeException('Khách hàng chưa thanh toán đơn này. Chỉ được gán worker sau khi thanh toán thành công.');
+            }
+
+            if (!$assignmentService->isWorkerAvailable($workerId, $bookingWindow['start'], $bookingWindow['end'], $bookingId)) {
+                throw new \RuntimeException('Worker này đang bận trong khung giờ của đơn đặt.');
+            }
+
+            $assigned = Booking::assignWorker($bookingId, $workerId);
+            if (!$assigned) {
+                throw new \RuntimeException('Không thể phân công worker cho đơn này.');
+            }
+
+            $currentStatus = (string)($currentBooking['status'] ?? Booking::STATUS_PENDING);
+            if (in_array($currentStatus, [Booking::STATUS_PENDING, Booking::STATUS_CONFIRMED], true)) {
+                Booking::updateStatus($bookingId, Booking::STATUS_CONFIRMED);
+            }
+
+            $pdo->commit();
+        } catch (\Throwable $exception) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+
+            $this->setSessionMessage('error', $exception->getMessage());
+            $this->redirect($redirectTo);
         }
 
         $this->setSessionMessage('success', 'Đã phân công worker #' . $workerId . '. Đơn đã sẵn sàng để worker nhận việc.');

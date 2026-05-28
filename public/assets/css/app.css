@@ -627,6 +627,21 @@ main.main-content {
 .user-dropdown .user-header { font-weight: 600; color: #1f2d3d; padding: 6px 8px; }
 .user-dropdown a { display:block; padding:8px 10px; border-radius:8px; color:#1f2d3d; text-decoration:none; }
 .user-dropdown a:hover { background:#e8f6ef; color:#2eaf7d; }
+.user-dropdown form { margin: 0; }
+.user-dropdown .logout-form { display: block; }
+.user-dropdown .logout-button {
+  display: block;
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #1f2d3d;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+}
+.user-dropdown .logout-button:hover { background: #e8f6ef; color: #2eaf7d; }
 
 /* Leaflet Map Styling */
 #map {

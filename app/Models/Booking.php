@@ -20,6 +20,7 @@ final class Booking
 
     // Các trạng thái của đơn đặt lịch
     public const STATUS_PENDING = 'pending';
+    public const STATUS_ASSIGNED = 'assigned';
     public const STATUS_CONFIRMED = 'confirmed';
     public const STATUS_ACCEPTED = 'accepted';
     public const STATUS_IN_PROGRESS = 'in_progress';
@@ -50,12 +51,44 @@ final class Booking
         ?float $unitPrice = null,
         ?float $lineTotal = null
     ): int {
-        // Insert into bookings (metadata only)
+        // Insert into bookings using the current table schema.
+        $user = User::findById($userId);
+        $service = Service::getById($serviceId);
+        $servicePriceSnapshot = $unitPrice ?? (float)($service['price'] ?? 0);
+
         $stmtBooking = DB::pdo()->prepare(
-            "INSERT INTO bookings (user_id, created_at, updated_at)
-             VALUES (:user_id, NOW(), NOW())"
+            "INSERT INTO bookings (
+                user_id, service_id, date, time, location, description,
+                customer_name_snapshot, customer_phone_snapshot,
+                service_name_snapshot, service_price_snapshot,
+                quantity, measure_unit, unit_price, line_total,
+                status, payment_status, created_at, updated_at
+            ) VALUES (
+                :user_id, :service_id, :date, :time, :location, :description,
+                :customer_name_snapshot, :customer_phone_snapshot,
+                :service_name_snapshot, :service_price_snapshot,
+                :quantity, :measure_unit, :unit_price, :line_total,
+                :status, :payment_status, NOW(), NOW()
+            )"
         );
-        $stmtBooking->execute(['user_id' => $userId]);
+        $stmtBooking->execute([
+            'user_id' => $userId,
+            'service_id' => $serviceId,
+            'date' => $date,
+            'time' => $time,
+            'location' => $location,
+            'description' => $description,
+            'customer_name_snapshot' => $user['name'] ?? null,
+            'customer_phone_snapshot' => $user['phone'] ?? null,
+            'service_name_snapshot' => $service['name'] ?? null,
+            'service_price_snapshot' => $servicePriceSnapshot,
+            'quantity' => $quantity,
+            'measure_unit' => $measureUnit ?? '',
+            'unit_price' => $unitPrice ?? 0,
+            'line_total' => $lineTotal ?? 0,
+            'status' => self::STATUS_PENDING,
+            'payment_status' => 'pending',
+        ]);
         $bookingId = (int)DB::pdo()->lastInsertId();
 
         // Insert into booking_details (full details)
@@ -97,7 +130,7 @@ final class Booking
         $sql = "SELECT
                     b.id,
                     b.user_id,
-                    b.assigned_worker_id,
+                    COALESCE(b.assigned_worker_id, bd.assigned_worker_id) AS assigned_worker_id,
                     b.assigned_at,
                     b.estimated_arrival_time,
                     b.confirmed_at,
@@ -121,16 +154,14 @@ final class Booking
                     bd.id AS booking_detail_id,
                     bd.booking_id,
                     bd.service_id,
-                    bd.service_name_snapshot AS detail_service_name_snapshot,
-                    bd.service_price_snapshot AS detail_service_price_snapshot,
+                    bd.location,
                     bd.assigned_worker_id AS detail_assigned_worker_id,
                     bd.assigned_at AS detail_assigned_at,
                     bd.estimated_arrival_time AS detail_estimated_arrival_time,
-                    bd.confirmed_at AS detail_confirmed_at,
-                    bd.started_at AS detail_started_at,
-                    bd.completed_at AS detail_completed_at,
                     bd.work_date,
+                    bd.work_date AS date,
                     bd.work_time,
+                    bd.work_time AS time,
                     bd.quantity,
                     bd.measure_unit,
                     bd.unit_price,
@@ -171,7 +202,7 @@ final class Booking
             "SELECT
                 b.id,
                 b.user_id,
-                b.assigned_worker_id,
+                COALESCE(b.assigned_worker_id, bd.assigned_worker_id) AS assigned_worker_id,
                 b.assigned_at,
                 b.estimated_arrival_time,
                 b.confirmed_at,
@@ -195,8 +226,11 @@ final class Booking
                 bd.id AS booking_detail_id,
                 bd.booking_id,
                 bd.service_id,
+                bd.location,
                 bd.work_date,
+                bd.work_date AS date,
                 bd.work_time,
+                bd.work_time AS time,
                 bd.quantity,
                 bd.measure_unit,
                 bd.unit_price,
@@ -231,7 +265,7 @@ final class Booking
             "SELECT
                 b.id,
                 b.user_id,
-                b.assigned_worker_id,
+                COALESCE(b.assigned_worker_id, bd.assigned_worker_id) AS assigned_worker_id,
                 b.assigned_at,
                 b.estimated_arrival_time,
                 b.confirmed_at,
@@ -255,16 +289,14 @@ final class Booking
                 bd.id AS booking_detail_id,
                 bd.booking_id,
                 bd.service_id,
-                bd.service_name_snapshot AS detail_service_name_snapshot,
-                bd.service_price_snapshot AS detail_service_price_snapshot,
+                bd.location,
                 bd.assigned_worker_id AS detail_assigned_worker_id,
                 bd.assigned_at AS detail_assigned_at,
                 bd.estimated_arrival_time AS detail_estimated_arrival_time,
-                bd.confirmed_at AS detail_confirmed_at,
-                bd.started_at AS detail_started_at,
-                bd.completed_at AS detail_completed_at,
                 bd.work_date,
+                bd.work_date AS date,
                 bd.work_time,
+                bd.work_time AS time,
                 bd.quantity,
                 bd.measure_unit,
                 bd.unit_price,
@@ -318,7 +350,7 @@ final class Booking
             "SELECT
                 b.id,
                 b.user_id,
-                b.assigned_worker_id,
+                COALESCE(b.assigned_worker_id, bd.assigned_worker_id) AS assigned_worker_id,
                 b.assigned_at,
                 b.estimated_arrival_time,
                 b.confirmed_at,
@@ -342,8 +374,11 @@ final class Booking
                 bd.id AS booking_detail_id,
                 bd.booking_id,
                 bd.service_id,
+                bd.location,
                 bd.work_date,
+                bd.work_date AS date,
                 bd.work_time,
+                bd.work_time AS time,
                 bd.quantity,
                 bd.measure_unit,
                 bd.unit_price,
@@ -378,7 +413,7 @@ final class Booking
             "SELECT
                 b.id,
                 b.user_id,
-                b.assigned_worker_id,
+                COALESCE(b.assigned_worker_id, bd.assigned_worker_id) AS assigned_worker_id,
                 b.assigned_at,
                 b.estimated_arrival_time,
                 b.confirmed_at,
@@ -402,8 +437,11 @@ final class Booking
                 bd.id AS booking_detail_id,
                 bd.booking_id,
                 bd.service_id,
+                bd.location,
                 bd.work_date,
+                bd.work_date AS date,
                 bd.work_time,
+                bd.work_time AS time,
                 bd.quantity,
                 bd.measure_unit,
                 bd.unit_price,
@@ -421,7 +459,7 @@ final class Booking
              LEFT JOIN users u ON u.id = b.user_id
              LEFT JOIN booking_details bd ON bd.booking_id = b.id
              LEFT JOIN services s ON s.id = bd.service_id
-             WHERE bd.assigned_worker_id = :wid
+             WHERE COALESCE(bd.assigned_worker_id, b.assigned_worker_id) = :wid
              ORDER BY bd.work_date ASC, bd.work_time ASC, b.id ASC"
         );
         $stmt->execute(['wid' => $workerId]);
@@ -454,10 +492,71 @@ final class Booking
      */
     public static function assignWorker(int $id, int $workerId): bool
     {
-        $stmt = DB::pdo()->prepare(
-            "UPDATE booking_details SET assigned_worker_id = :wid, assigned_at = NOW(), updated_at = NOW() WHERE booking_id = :id"
-        );
-        return $stmt->execute(['wid' => $workerId, 'id' => $id]);
+        $pdo = DB::pdo();
+        $ownsTransaction = !$pdo->inTransaction();
+
+        try {
+            if ($ownsTransaction) {
+                $pdo->beginTransaction();
+            }
+
+            $bookingId = $id;
+            $workerIdValue = $workerId;
+            $assignedStatus = self::STATUS_ASSIGNED;
+
+            $stmtBooking = $pdo->prepare(
+                "UPDATE bookings
+                 SET assigned_worker_id = :wid,
+                     status = :status,
+                     assigned_at = NOW(),
+                     updated_at = NOW()
+                 WHERE id = :id"
+            );
+            $stmtBooking->bindParam(':wid', $workerIdValue, \PDO::PARAM_INT);
+            $stmtBooking->bindParam(':status', $assignedStatus, \PDO::PARAM_STR);
+            $stmtBooking->bindParam(':id', $bookingId, \PDO::PARAM_INT);
+
+            if (!$stmtBooking->execute()) {
+                throw new PDOException('Failed to update bookings assignment');
+            }
+
+            $detailExists = $pdo->prepare(
+                "SELECT 1 FROM booking_details WHERE booking_id = :id LIMIT 1"
+            );
+            $detailExists->bindParam(':id', $bookingId, \PDO::PARAM_INT);
+            $detailExists->execute();
+
+            if ($detailExists->fetchColumn() !== false) {
+                $stmtDetail = $pdo->prepare(
+                    "UPDATE booking_details
+                     SET assigned_worker_id = :wid,
+                         assigned_at = NOW(),
+                         detail_status = :status,
+                         updated_at = NOW()
+                     WHERE booking_id = :id"
+                );
+                $stmtDetail->bindParam(':wid', $workerIdValue, \PDO::PARAM_INT);
+                $stmtDetail->bindParam(':status', $assignedStatus, \PDO::PARAM_STR);
+                $stmtDetail->bindParam(':id', $bookingId, \PDO::PARAM_INT);
+
+                if (!$stmtDetail->execute()) {
+                    throw new PDOException('Failed to update booking_details assignment');
+                }
+            }
+
+            if ($ownsTransaction) {
+                $pdo->commit();
+            }
+
+            return true;
+        } catch (PDOException $exception) {
+            if ($ownsTransaction && $pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+
+            error_log('Booking::assignWorker error: ' . $exception->getMessage());
+            return false;
+        }
     }
 
     /**
@@ -496,6 +595,7 @@ final class Booking
         }
 
         $fallbacks = [
+            self::STATUS_ASSIGNED => self::STATUS_ASSIGNED,
             self::STATUS_ACCEPTED => self::STATUS_CONFIRMED,
             self::STATUS_IN_PROGRESS => self::STATUS_CONFIRMED,
             'on_the_way' => self::STATUS_CONFIRMED,
@@ -534,6 +634,7 @@ final class Booking
             } else {
                 self::$statusEnumCache = [
                     self::STATUS_PENDING,
+                    self::STATUS_ASSIGNED,
                     self::STATUS_CONFIRMED,
                     self::STATUS_COMPLETED,
                     self::STATUS_CANCELLED,
@@ -542,6 +643,7 @@ final class Booking
         } catch (PDOException $exception) {
             self::$statusEnumCache = [
                 self::STATUS_PENDING,
+                self::STATUS_ASSIGNED,
                 self::STATUS_CONFIRMED,
                 self::STATUS_COMPLETED,
                 self::STATUS_CANCELLED,

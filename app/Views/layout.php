@@ -1,5 +1,6 @@
 <?php
 use App\Core\Auth;
+$offlineMode = defined('APP_OFFLINE_MODE') && APP_OFFLINE_MODE;
 ?>
 <!doctype html>
 <html lang="vi">
@@ -7,14 +8,17 @@ use App\Core\Auth;
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Cleaning Service</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/assets/css/app.css">
-  <!-- Leaflet Map Library CSS -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" integrity="sha512-h9FcoyWjrSciIFUuxfbMg8TABgkG91B6YGYRtDgGV7ZUnqN1nJikQjalLm65OEftzL6KY3E5IavtrHHMvg/ypA==" crossorigin="anonymous" referrerpolicy="no-referrer" />
-  <!-- Fallback: jsDelivr CDN CSS if cdnjs fails -->
-  <!-- <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.min.css" /> -->
+  <script>
+    window.APP_OFFLINE_MODE = <?= $offlineMode ? 'true' : 'false' ?>;
+  </script>
+  <?php if (!$offlineMode): ?>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Leaflet Map Library CSS -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" integrity="sha512-h9FcoyWjrSciIFUuxfbMg8TABgkG91B6YGYRtDgGV7ZUnqN1nJikQjalLm65OEftzL6KY3E5IavtrHHMvg/ypA==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+  <?php endif; ?>
 </head>
 <body>
   <?php if (empty($hideChrome)): ?>
@@ -92,15 +96,23 @@ use App\Core\Auth;
               Gò Vấp, TP.HCM
             </p>
             <div style="margin-top: 12px; border: 1px solid #d9efe5; border-radius: 10px; overflow: hidden; background: #ffffff;">
-              <iframe
-                title="Bản đồ văn phòng Đại học IUH"
-                src="https://maps.google.com/maps?q=10.82192,106.68688%20(12%20Nguy%E1%BB%85n%20V%C4%83n%20B%E1%BA%A3o,%20G%C3%B2%20V%E1%BA%A5p,%20TP.HCM)&t=&z=17&ie=UTF8&iwloc=B&output=embed"
-                width="100%"
-                height="170"
-                style="border:0; display:block;"
-                loading="lazy"
-                referrerpolicy="no-referrer-when-downgrade"
-              ></iframe>
+              <?php if ($offlineMode): ?>
+                <div style="padding: 18px; min-height: 170px; display:flex; flex-direction:column; justify-content:center; align-items:center; text-align:center; color:#546e7a; background: linear-gradient(135deg, #f7fdf9 0%, #ffffff 100%);">
+                  <strong style="color:#1f2d3d; margin-bottom:6px;">Bản đồ test nội bộ</strong>
+                  <span>Chế độ offline đã tắt nhúng Google Maps.</span>
+                  <span style="margin-top:6px; font-size:12px;">12 Nguyễn Văn Bảo, Gò Vấp, TP.HCM</span>
+                </div>
+              <?php else: ?>
+                <iframe
+                  title="Bản đồ văn phòng Đại học IUH"
+                  src="https://maps.google.com/maps?q=10.82192,106.68688%20(12%20Nguy%E1%BB%85n%20V%C4%83n%20B%E1%BA%A3o,%20G%C3%B2%20V%E1%BA%A5p,%20TP.HCM)&t=&z=17&ie=UTF8&iwloc=B&output=embed"
+                  width="100%"
+                  height="170"
+                  style="border:0; display:block;"
+                  loading="lazy"
+                  referrerpolicy="no-referrer-when-downgrade"
+                ></iframe>
+              <?php endif; ?>
             </div>
             <p id="footer-company-map-status" style="color: #546e7a; font-size: 12px; margin: 8px 0 0 0;">Vị trí văn phòng: 12 Nguyễn Văn Bảo, Phường 4, Gò Vấp, TP.HCM (Đại học IUH).</p>
           </div>
@@ -116,29 +128,31 @@ use App\Core\Auth;
     </footer>
   <?php endif; ?>
 
-  <!-- Leaflet Map Library JS - Primary source -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js" integrity="sha512-WXoSL2lrKOSIDlsNfbIQxhcO1jNC38wHqN++VM5ccZgEmcRs6AFWGhCW+NvxF2wxQLeB3co7D6K6YfLAxjUTeA==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-  
-  <!-- Leaflet Fallback - jsDelivr -->
-  <script>
-    if (typeof L === 'undefined') {
-      console.log('[Leaflet] Primary CDN failed, loading fallback...');
-      var s = document.createElement('script');
-      s.src = 'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.min.js';
-      s.onload = function() {
-        console.log('[Leaflet] Fallback CDN loaded');
+  <?php if (!$offlineMode): ?>
+    <!-- Leaflet Map Library JS - Primary source -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js" integrity="sha512-WXoSL2lrKOSIDlsNfbIQxhcO1jNC38wHqN++VM5ccZgEmcRs6AFWGhCW+NvxF2wxQLeB3co7D6K6YfLAxjUTeA==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    
+    <!-- Leaflet Fallback - jsDelivr -->
+    <script>
+      if (typeof L === 'undefined') {
+        console.log('[Leaflet] Primary CDN failed, loading fallback...');
+        var s = document.createElement('script');
+        s.src = 'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.min.js';
+        s.onload = function() {
+          console.log('[Leaflet] Fallback CDN loaded');
+          window.leafletReady = true;
+          document.dispatchEvent(new Event('leafletLoaded'));
+        };
+        s.onerror = function() {
+          console.error('[Leaflet] All CDN sources failed');
+        };
+        document.head.appendChild(s);
+      } else {
         window.leafletReady = true;
-        document.dispatchEvent(new Event('leafletLoaded'));
-      };
-      s.onerror = function() {
-        console.error('[Leaflet] All CDN sources failed');
-      };
-      document.head.appendChild(s);
-    } else {
-      window.leafletReady = true;
-      console.log('[Leaflet] Primary CDN loaded');
-    }
-  </script>
+        console.log('[Leaflet] Primary CDN loaded');
+      }
+    </script>
+  <?php endif; ?>
   
   <!-- Map Handler Script -->
   <script src="/assets/js/map-handler.js" defer></script>

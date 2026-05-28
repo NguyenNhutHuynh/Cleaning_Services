@@ -1,0 +1,51 @@
+{
+  "code": "79",
+  "name": "Hồ Chí Minh",
+  "districts": [
+    {
+      "code": "760",
+      "name": "Quận 1",
+      "wards": [
+        { "code": "76001", "name": "Bến Nghé" },
+        { "code": "76002", "name": "Bến Thành" },
+        { "code": "76003", "name": "Cầu Ông Lãnh" }
+      ]
+    },
+    {
+      "code": "772",
+      "name": "Quận 3",
+      "wards": [
+        { "code": "77201", "name": "Phường 1" },
+        { "code": "77202", "name": "Phường 2" },
+        { "code": "77203", "name": "Phường 3" }
+      ]
+    },
+    {
+      "code": "764",
+      "name": "Quận Gò Vấp",
+      "wards": [
+        { "code": "76401", "name": "Phường 1" },
+        { "code": "76402", "name": "Phường 3" },
+        { "code": "76403", "name": "Phường 5" }
+      ]
+    },
+    {
+      "code": "766",
+      "name": "Quận Bình Thạnh",
+      "wards": [
+        { "code": "76601", "name": "Phường 1" },
+        { "code": "76602", "name": "Phường 2" },
+        { "code": "76603", "name": "Phường 7" }
+      ]
+    },
+    {
+      "code": "770",
+      "name": "Quận Tân Bình",
+      "wards": [
+        { "code": "77001", "name": "Phường 1" },
+        { "code": "77002", "name": "Phường 2" },
+        { "code": "77003", "name": "Phường 4" }
+      ]
+    }
+  ]
+}

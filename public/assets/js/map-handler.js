@@ -5,9 +5,32 @@
 
 console.log('[Map Handler] Script loaded');
 
+const offlineMode = typeof window !== 'undefined' && !!window.APP_OFFLINE_MODE;
+
 // Map instance global
 let mapInstance = null;
 let markerLayer = null;
+
+function renderOfflineMap(container, title, lines) {
+  if (!container) {
+    return;
+  }
+
+  const detailHtml = Array.isArray(lines)
+    ? lines.filter(Boolean).map((line) => `<div style="margin-top:6px; font-size:13px; color:#546e7a;">${escapeHtml(String(line))}</div>`).join('')
+    : '';
+
+  container.innerHTML = `
+    <div class="map-placeholder" style="min-height: 320px; display:flex; align-items:center; justify-content:center; padding:24px; background: linear-gradient(135deg, #f7fdf9 0%, #ffffff 100%); border: 1px dashed #dcefe6; border-radius: 18px;">
+      <div style="text-align:center; max-width: 360px;">
+        <div style="font-size: 28px; margin-bottom: 10px;">🗺️</div>
+        <div style="font-weight: 800; color: #1f2d3d; margin-bottom: 6px;">${escapeHtml(title)}</div>
+        <div style="color: #546e7a; font-size: 14px; line-height: 1.6;">Chế độ test nội bộ không tải dịch vụ bản đồ ngoài.</div>
+        ${detailHtml}
+      </div>
+    </div>
+  `;
+}
 
 /**
  * Initialize map for booking location
@@ -23,10 +46,18 @@ function initializeBookingMap(containerId, locationAddress = null, latitude = 21
     return null;
   }
 
+  if (offlineMode || typeof L === 'undefined') {
+    renderOfflineMap(container, 'Bản đồ test', [
+      locationAddress ? `Địa chỉ: ${locationAddress}` : 'Chưa có địa chỉ cụ thể',
+      `Tọa độ tham chiếu: ${latitude.toFixed(6)}, ${longitude.toFixed(6)}`,
+    ]);
+    return null;
+  }
+
   // Check if Leaflet is loaded
   if (typeof L === 'undefined') {
     console.error('[Map] Leaflet library not loaded. Make sure Leaflet CDN is included.');
-    container.innerHTML = '<p style="padding: 20px; color: #a8a8a8;">Bản đồ không thể tải. Vui lòng kiểm tra kết nối internet hoặc tính năng chặn quảng cáo.</p>';
+    renderOfflineMap(container, 'Bản đồ không thể tải', ['Vui lòng kiểm tra kết nối internet hoặc tính năng chặn quảng cáo.']);
     return null;
   }
 
@@ -129,9 +160,17 @@ function initializeWorkerRouteMap(containerId, customerAddress, workerAddress) {
     return null;
   }
 
+  if (offlineMode || typeof L === 'undefined') {
+    renderOfflineMap(container, 'Bản đồ test tuyến đường', [
+      customerAddress ? `Khách hàng: ${customerAddress}` : 'Chưa có địa chỉ khách hàng',
+      workerAddress ? `Worker: ${workerAddress}` : 'Chưa có địa chỉ worker',
+    ]);
+    return null;
+  }
+
   if (typeof L === 'undefined') {
     console.error('[Map] Leaflet library not loaded');
-    container.innerHTML = '<p style="padding: 20px; color: #a8a8a8;">Bản đồ không thể tải. Vui lòng kiểm tra kết nối internet.</p>';
+    renderOfflineMap(container, 'Bản đồ không thể tải', ['Vui lòng kiểm tra kết nối internet.']);
     return null;
   }
 
@@ -306,6 +345,11 @@ function geocodeAddress(address, callback) {
     return;
   }
 
+  if (offlineMode) {
+    callback(null);
+    return;
+  }
+
   const encodedAddress = encodeURIComponent(address);
   const url = `https://nominatim.openstreetmap.org/search?q=${encodedAddress}&format=json&limit=1`;
 
@@ -373,11 +417,35 @@ document.addEventListener('DOMContentLoaded', function () {
 });
 
 function initMapsWhenReady() {
+  if (offlineMode) {
+    const bookingMapContainer = document.getElementById('booking-map');
+    if (bookingMapContainer) {
+      const address = bookingMapContainer.getAttribute('data-address') || null;
+      const lat = parseFloat(bookingMapContainer.getAttribute('data-lat') || '21.0285');
+      const lng = parseFloat(bookingMapContainer.getAttribute('data-lng') || '105.8542');
+      renderOfflineMap(bookingMapContainer, 'Bản đồ test', [
+        address ? `Địa chỉ: ${address}` : 'Chưa có địa chỉ',
+        `Tọa độ tham chiếu: ${lat.toFixed(6)}, ${lng.toFixed(6)}`,
+      ]);
+    }
+
+    const workerMapContainer = document.getElementById('worker-map');
+    if (workerMapContainer && workerMapContainer.classList && !workerMapContainer.classList.contains('fallback-map')) {
+      const customerAddress = workerMapContainer.getAttribute('data-address') || null;
+      const workerAddressEl = document.getElementById('workerAddress');
+      const workerAddress = workerAddressEl ? workerAddressEl.textContent.trim() : null;
+      renderOfflineMap(workerMapContainer, 'Bản đồ test tuyến đường', [
+        customerAddress ? `Khách hàng: ${customerAddress}` : 'Chưa có địa chỉ khách hàng',
+        workerAddress ? `Worker: ${workerAddress}` : 'Chưa có địa chỉ worker',
+      ]);
+    }
+
+    return;
+  }
+
   // Check if Leaflet is available
   if (typeof L === 'undefined') {
-    console.warn('[Map] Leaflet not yet available, will try again...');
-    // Retry after another delay
-    setTimeout(initMapsWhenReady, 500);
+    console.warn('[Map] Leaflet not available, switching to fallback maps...');
     return;
   }
 

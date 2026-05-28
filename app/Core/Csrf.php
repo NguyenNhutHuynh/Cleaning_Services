@@ -13,6 +13,26 @@ final class Csrf
     private const SESSION_KEY = '_csrf';
     private const TOKEN_LENGTH = 32; // 32 byte = 64 ký tự hex
 
+    public static function generateCsrfToken(): string
+    {
+        return self::token();
+    }
+
+    public static function verifyCsrfToken(?string $token): bool
+    {
+        return self::verify($token);
+    }
+
+    public static function csrfInput(): string
+    {
+        return '<input type="hidden" name="_csrf" value="' . htmlspecialchars(self::token(), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '">';
+    }
+
+    public static function csrfMetaTag(): string
+    {
+        return '<meta name="csrf-token" content="' . htmlspecialchars(self::token(), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '">';
+    }
+
     /**
      * Lấy hoặc tạo token CSRF cho session hiện tại.
      * Token được lưu trong session và trả về dưới dạng chuỗi hex.
