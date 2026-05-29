@@ -80,8 +80,8 @@ final class Booking
             'description' => $description,
             'customer_name_snapshot' => $user['name'] ?? null,
             'customer_phone_snapshot' => $user['phone'] ?? null,
-            'service_name_snapshot' => $service['name'] ?? null,
-            'service_price_snapshot' => $servicePriceSnapshot,
+                'service_name_snapshot' => $service['name'] ?? null,
+                'service_price_snapshot' => $servicePriceSnapshot,
             'quantity' => $quantity,
             'measure_unit' => $measureUnit ?? '',
             'unit_price' => $unitPrice ?? 0,
@@ -94,11 +94,11 @@ final class Booking
         // Insert into booking_details (full details)
         $stmtDetail = DB::pdo()->prepare(
             "INSERT INTO booking_details (
-                booking_id, service_id, work_date, work_time,
+                booking_id, service_id, work_date, work_time, location,
                 quantity, measure_unit, unit_price, line_total,
                 detail_status, note, created_at, updated_at
             ) VALUES (
-                :booking_id, :service_id, :work_date, :work_time,
+                :booking_id, :service_id, :work_date, :work_time, :location,
                 :quantity, :measure_unit, :unit_price, :line_total,
                 :detail_status, :note, NOW(), NOW()
             )"
@@ -106,6 +106,7 @@ final class Booking
         $stmtDetail->execute([
             'booking_id' => $bookingId,
             'service_id' => $serviceId,
+            'location' => $location,
             'work_date' => $date,
             'work_time' => $time,
             'quantity' => $quantity,
@@ -136,7 +137,7 @@ final class Booking
                     b.confirmed_at,
                     b.started_at,
                     b.completed_at,
-                    b.location,
+                        COALESCE(bd.location, b.location) AS location,
                     b.customer_name_snapshot,
                     b.customer_phone_snapshot,
                     b.service_name_snapshot,
@@ -208,7 +209,7 @@ final class Booking
                 b.confirmed_at,
                 b.started_at,
                 b.completed_at,
-                b.location,
+                COALESCE(bd.location, b.location) AS location,
                 b.customer_name_snapshot,
                 b.customer_phone_snapshot,
                 b.service_name_snapshot,
@@ -271,7 +272,7 @@ final class Booking
                 b.confirmed_at,
                 b.started_at,
                 b.completed_at,
-                b.location,
+                COALESCE(bd.location, b.location) AS location,
                 b.customer_name_snapshot,
                 b.customer_phone_snapshot,
                 b.service_name_snapshot,
@@ -356,7 +357,7 @@ final class Booking
                 b.confirmed_at,
                 b.started_at,
                 b.completed_at,
-                b.location,
+                    COALESCE(bd.location, b.location) AS location,
                 b.customer_name_snapshot,
                 b.customer_phone_snapshot,
                 b.service_name_snapshot,
@@ -419,7 +420,7 @@ final class Booking
                 b.confirmed_at,
                 b.started_at,
                 b.completed_at,
-                b.location,
+                COALESCE(bd.location, b.location) AS location,
                 b.customer_name_snapshot,
                 b.customer_phone_snapshot,
                 b.service_name_snapshot,

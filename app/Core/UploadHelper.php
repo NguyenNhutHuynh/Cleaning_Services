@@ -49,6 +49,11 @@ final class UploadHelper
             return ['success' => false, 'error' => 'Invalid image extension'];
         }
 
+        // Kiểm tra magic bytes (header) để tránh giả mạo phần mở rộng
+        if (!self::hasValidMagicBytes($tmpPath, $extension)) {
+            return ['success' => false, 'error' => 'File header (magic bytes) không hợp lệ cho loại ảnh'];
+        }
+
         $mime = self::detectMime($tmpPath);
         if ($mime === '') {
             return ['success' => false, 'error' => 'Unable to detect image MIME'];
@@ -121,5 +126,48 @@ final class UploadHelper
         }
 
         return strtolower($mime);
+    }
+
+    /**
+     * Kiểm tra magic bytes cho các định dạng ảnh phổ biến.
+     */
+    private static function hasValidMagicBytes(string $tmpPath, string $extension): bool
+    {
+        if (!is_readable($tmpPath)) {
+            return false;
+        }
+
+        $extension = strtolower($extension);
+        $fh = fopen($tmpPath, 'rb');
+        if ($fh === false) {
+            return false;
+        }
+
+        $bytes = fread($fh, 12);
+        fclose($fh);
+        if ($bytes === false || $bytes === '') {
+            return false;
+        }
+
+        $hex = bin2hex($bytes);
+
+        switch ($extension) {
+            case 'jpg':
+                // JPEG: starts with FF D8
+                return stripos($hex, 'ffd8') === 0;
+            case 'png':
+                // PNG: 89 50 4E 47 0D 0A 1A 0A
+                return stripos($hex, '89504e470d0a1a0a') === 0;
+            case 'webp':
+                // WebP: RIFF....WEBP -> ASCII: '52494646' at start and '57454250' at offset 8
+                // check first 12 bytes
+                $start = substr($hex, 0, 8);
+                $riff = strtolower($start) === '52494646';
+                $fourcc = substr($hex, 16, 8);
+                $webp = strtolower($fourcc) === '57454250';
+                return $riff && $webp;
+            default:
+                return false;
+        }
     }
 }
