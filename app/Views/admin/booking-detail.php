@@ -488,7 +488,14 @@ $bookingStatusLabel = $bookingStatusMap[$bookingStatus] ?? 'Không rõ';
 
         <div class="meta-item">
           <strong>Địa chỉ</strong>
-          <?= View::e((string)($booking['location'] ?? '')) ?>
+          <?php
+            $loc = trim((string)($booking['location'] ?? ''));
+            $cust = trim((string)($booking['customer_address'] ?? $booking['user_address'] ?? ''));
+          ?>
+          <div><?= View::e($loc !== '' ? $loc : $cust) ?></div>
+          <?php if ($loc !== '' && $cust !== '' && $loc !== $cust): ?>
+            <div style="margin-top:6px;font-size:13px;color:#6b7b82">Khách: <?= View::e($cust) ?></div>
+          <?php endif; ?>
         </div>
 
         <div class="meta-item">

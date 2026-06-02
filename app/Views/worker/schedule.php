@@ -405,7 +405,10 @@ $today = date('Y-m-d');
                   <div class="schedule-meta">
                     <h4><?= View::e($item['service_name']) ?></h4>
                     <p><strong>Khách hàng:</strong> <?= View::e($item['customer_name']) ?></p>
-                    <p><strong>Địa điểm:</strong> <?= View::e($item['location']) ?></p>
+                    <?php $loc = trim((string)($item['location'] ?? '')); $cust = trim((string)($item['customer_address'] ?? '')); ?>
+                    <?php if ($loc !== '' || $cust !== ''): ?>
+                      <p><strong>Địa điểm:</strong> <?= View::e($loc !== '' ? $loc : $cust) ?></p>
+                    <?php endif; ?>
                     <?php if ($item['phone'] !== ''): ?>
                       <p><strong>SĐT:</strong> <?= View::e($item['phone']) ?></p>
                     <?php endif; ?>

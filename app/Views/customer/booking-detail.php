@@ -429,7 +429,16 @@ $bookingStatusLabel = !empty($isCustomerPaid) ? 'Đã thanh toán' : ($bookingSt
 
         <div class="info-item">
           <span class="info-label">Địa chỉ</span>
-          <span class="info-value" id="customerAddress"><?= View::e($booking['location'] ?? '') ?></span>
+          <?php
+            $locationFull = trim((string)($booking['location'] ?? ''));
+            $customerAddr = trim((string)($booking['customer_address'] ?? $booking['user_address'] ?? ''));
+          ?>
+          <span class="info-value" id="customerAddress">
+            <?= View::e($locationFull !== '' ? $locationFull : $customerAddr) ?>
+          </span>
+          <?php if ($locationFull !== '' && $customerAddr !== '' && $locationFull !== $customerAddr): ?>
+            <div style="margin-top:6px;font-size:13px;color:#6b7b82">Địa chỉ khách hàng: <?= View::e($customerAddr) ?></div>
+          <?php endif; ?>
         </div>
 
         <div class="info-item">

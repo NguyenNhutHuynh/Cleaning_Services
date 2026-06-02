@@ -576,7 +576,10 @@ $formatDateLabel = static function (string $date): string {
                         $statusInfo = $statusStyles[$status] ?? ['label' => $item['status_label'] ?? 'Không rõ', 'class' => 'status-pending'];
                       ?>
                       <tr
-                        data-search="<?= View::e(strtolower(trim((string)($item['worker_name'] ?? '') . ' ' . (string)($item['customer_name'] ?? '') . ' ' . (string)($item['service_name'] ?? '') . ' ' . (string)($item['location'] ?? '') . ' ' . (string)($item['customer_address'] ?? '')))) ?>"
+                        <?php
+                          $searchText = strtolower(trim((string)($item['worker_name'] ?? '') . ' ' . (string)($item['customer_name'] ?? '') . ' ' . (string)($item['service_name'] ?? '') . ' ' . (string)($item['location'] ?? '') . ' ' . (string)($item['customer_address'] ?? '')));
+                        ?>
+                        data-search="<?= View::e($searchText) ?>"
                         data-status="<?= View::e((string)$status) ?>"
                         data-date="<?= View::e((string)($item['date'] ?? '')) ?>"
                       >
@@ -594,8 +597,15 @@ $formatDateLabel = static function (string $date): string {
                             <?php if (!empty($item['customer_phone'])): ?>
                               <span>SĐT: <?= View::e((string)$item['customer_phone']) ?></span>
                             <?php endif; ?>
-                            <?php if (!empty($item['location'])): ?>
-                              <span>Địa chỉ: <?= View::e((string)$item['location']) ?></span>
+                            <?php
+                              $loc = trim((string)($item['location'] ?? ''));
+                              $cust = trim((string)($item['customer_address'] ?? ''));
+                            ?>
+                            <?php if ($loc !== '' || $cust !== ''): ?>
+                              <span>Địa chỉ: <?= View::e($loc !== '' ? $loc : $cust) ?></span>
+                              <?php if ($loc !== '' && $cust !== '' && $loc !== $cust): ?>
+                                <span style="display:block;font-size:12px;color:#6b7b82">Khách: <?= View::e($cust) ?></span>
+                              <?php endif; ?>
                             <?php endif; ?>
                           </div>
                         </td>
@@ -607,7 +617,14 @@ $formatDateLabel = static function (string $date): string {
                         </td>
                         <td>
                           <div class="schedule-stack">
-                            <strong><?= View::e((string)($item['customer_address'] ?? '')) ?></strong>
+                            <?php
+                              $loc2 = trim((string)($item['location'] ?? ''));
+                              $cust2 = trim((string)($item['customer_address'] ?? ''));
+                            ?>
+                            <strong><?= View::e($loc2 !== '' ? $loc2 : $cust2) ?></strong>
+                            <?php if ($loc2 !== '' && $cust2 !== '' && $loc2 !== $cust2): ?>
+                              <div style="font-size:12px;color:#6b7b82"><?= View::e($cust2) ?></div>
+                            <?php endif; ?>
                           </div>
                         </td>
                         <td>

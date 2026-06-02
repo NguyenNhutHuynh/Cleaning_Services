@@ -462,7 +462,7 @@ final class PaymentTransaction
                     pt.*,
                     b.date AS booking_date,
                     b.time AS booking_time,
-                    b.location AS booking_location,
+                    COALESCE(bd.location, b.location) AS booking_location,
                     b.description AS booking_description,
                     b.status AS booking_status,
                     b.assigned_worker_id,
@@ -474,6 +474,7 @@ final class PaymentTransaction
                     w.phone AS worker_phone
                 FROM payment_transactions pt
                 JOIN bookings b ON b.id = pt.booking_id
+                LEFT JOIN booking_details bd ON bd.booking_id = b.id
                 JOIN users u ON u.id = b.user_id
                 JOIN services s ON s.id = b.service_id
                 LEFT JOIN users w ON w.id = b.assigned_worker_id

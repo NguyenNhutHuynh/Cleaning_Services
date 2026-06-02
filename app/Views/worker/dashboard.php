@@ -387,7 +387,11 @@ use App\Models\User;
             <a href="/worker/jobs/<?= (int)$booking['id'] ?>" class="worker-card job-card">
               <span class="job-time"><?= View::e($booking['time']) ?></span>
               <p><strong>Dịch vụ:</strong> <?= View::e($booking['service_name'] ?? 'N/A') ?></p>
-              <p><strong>Địa điểm:</strong> <?= View::e($booking['location'] ?? 'N/A') ?></p>
+              <?php
+                $loc = trim((string)($booking['location'] ?? ''));
+                $cust = trim((string)($booking['customer_address'] ?? $booking['user_address'] ?? ''));
+              ?>
+              <p><strong>Địa điểm:</strong> <?= View::e($loc !== '' ? $loc : ($cust !== '' ? $cust : 'N/A')) ?></p>
               <p><strong>Khách:</strong> <?= View::e($booking['user_name'] ?? 'N/A') ?></p>
               <span class="job-status"><?= View::e($statusText) ?></span>
             </a>

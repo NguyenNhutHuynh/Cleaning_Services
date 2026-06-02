@@ -337,7 +337,14 @@ $rawDisplay = $prettyRaw !== '' ? $prettyRaw : ($rawData !== '' ? $rawData : 'Ch
         </div>
         <div class="info-item">
           <span class="info-label">Địa chỉ</span>
-          <span class="info-value"><?= View::e((string)($booking['location'] ?? '')) ?></span>
+          <?php
+            $loc = trim((string)($booking['location'] ?? ''));
+            $cust = trim((string)($booking['customer_address'] ?? $booking['user_address'] ?? ''));
+          ?>
+          <span class="info-value"><?= View::e($loc !== '' ? $loc : $cust) ?></span>
+          <?php if ($loc !== '' && $cust !== '' && $loc !== $cust): ?>
+            <div style="margin-top:6px;font-size:13px;color:#6b7b82">Khách: <?= View::e($cust) ?></div>
+          <?php endif; ?>
         </div>
         <div class="info-item">
           <span class="info-label">Trạng thái đơn</span>

@@ -15,7 +15,14 @@ use App\Core\View;
     <h2>Thông tin job</h2>
     <div class="review-box">
       <p><strong>Khách hàng:</strong> <?= View::e($job['user_name'] ?? '') ?></p>
-      <p><strong>Địa chỉ:</strong> <?= View::e($job['location'] ?? '') ?></p>
+      <?php
+        $loc = trim((string)($job['location'] ?? ''));
+        $cust = trim((string)($job['customer_address'] ?? $job['user_address'] ?? ''));
+      ?>
+      <p><strong>Địa chỉ:</strong> <?= View::e($loc !== '' ? $loc : $cust) ?></p>
+      <?php if ($loc !== '' && $cust !== '' && $loc !== $cust): ?>
+        <p style="font-size:13px;color:#6b7b82">Khách: <?= View::e($cust) ?></p>
+      <?php endif; ?>
       <p><strong>Dịch vụ:</strong> <?= View::e($job['service_name'] ?? '') ?></p>
       <p><strong>Tiền thu khách:</strong>
         <?php if (in_array($job['status'] ?? '', ['confirmed', 'accepted', 'in_progress', 'completed'], true)): ?>

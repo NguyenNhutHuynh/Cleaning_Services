@@ -461,7 +461,14 @@ $offlineMode = defined('APP_OFFLINE_MODE') && APP_OFFLINE_MODE;
 
         <div class="info-item">
           <span class="info-label">Địa chỉ</span>
-          <span class="info-value" id="customerAddress"><?= View::e($job['location'] ?? '') ?></span>
+          <?php
+            $loc = trim((string)($job['location'] ?? ''));
+            $cust = trim((string)($job['customer_address'] ?? $job['user_address'] ?? ''));
+          ?>
+          <span class="info-value" id="customerAddress"><?= View::e($loc !== '' ? $loc : $cust) ?></span>
+          <?php if ($loc !== '' && $cust !== '' && $loc !== $cust): ?>
+            <div style="margin-top:6px;font-size:13px;color:#6b7b82">Khách: <?= View::e($cust) ?></div>
+          <?php endif; ?>
         </div>
 
         <div class="info-item">
@@ -558,7 +565,8 @@ $offlineMode = defined('APP_OFFLINE_MODE') && APP_OFFLINE_MODE;
 
         <div class="map-info-item">
           <strong>Vị trí khách hàng</strong>
-          <span id="customerAddressMap"><?= View::e($job['location'] ?? 'Không xác định') ?></span>
+          <?php $locMap = trim((string)($job['location'] ?? '')); $custMap = trim((string)($job['customer_address'] ?? $job['user_address'] ?? '')); ?>
+          <span id="customerAddressMap"><?= View::e($locMap !== '' ? $locMap : ($custMap !== '' ? $custMap : 'Không xác định')) ?></span>
         </div>
       </div>
 

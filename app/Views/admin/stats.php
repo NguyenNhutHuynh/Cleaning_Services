@@ -302,7 +302,7 @@ $paymentStatusLabels = [
                     (string)($payment['payer_name'] ?? '') . ' ' .
                     (string)($payment['customer_name'] ?? '') . ' ' .
                     (string)($payment['service_name'] ?? '') . ' ' .
-                    (string)($payment['booking_location'] ?? '')
+                    (string)($payment['booking_location'] ?? '') . ' ' . (string)($payment['customer_address'] ?? '')
                   ));
                   $methodLabel = $paymentMethodLabels[$paymentMethod] ?? ($paymentMethod !== '' ? $paymentMethod : 'Không rõ');
                   $statusLabel = $paymentStatusLabels[$paymentStatus] ?? ($paymentStatus !== '' ? $paymentStatus : 'Không rõ');
@@ -342,8 +342,15 @@ $paymentStatusLabels = [
                       <?php if (!empty($payment['booking_date']) || !empty($payment['booking_time'])): ?>
                         <span><?= View::e(trim((string)($payment['booking_date'] ?? '') . ' ' . (string)($payment['booking_time'] ?? ''))) ?></span>
                       <?php endif; ?>
-                      <?php if (!empty($payment['booking_location'])): ?>
-                        <span>Địa điểm: <?= View::e((string)$payment['booking_location']) ?></span>
+                      <?php
+                        $ploc = trim((string)($payment['booking_location'] ?? ''));
+                        $pcust = trim((string)($payment['customer_address'] ?? ''));
+                      ?>
+                      <?php if ($ploc !== '' || $pcust !== ''): ?>
+                        <span>Địa điểm: <?= View::e($ploc !== '' ? $ploc : $pcust) ?></span>
+                        <?php if ($ploc !== '' && $pcust !== '' && $ploc !== $pcust): ?>
+                          <div style="font-size:12px;color:#6b7b82">Khách: <?= View::e($pcust) ?></div>
+                        <?php endif; ?>
                       <?php endif; ?>
                       <?php if (!empty($payment['worker_name'])): ?>
                         <span>Worker: <?= View::e((string)$payment['worker_name']) ?></span>

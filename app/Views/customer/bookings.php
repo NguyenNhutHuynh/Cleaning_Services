@@ -599,14 +599,13 @@ $serviceOptions = array_keys($serviceOptions);
             $displayStatus = $isCustomerPaid ? 'paid' : $status;
             $isCancelled = ($status === 'cancelled');
             $serviceName = trim((string)($b['service_name'] ?? ''));
-            $searchText = trim(
-              strtolower(
-                (string)($b['id'] ?? '') . ' ' .
-                $serviceName . ' ' .
-                (string)($b['location'] ?? '') . ' ' .
-                (string)($b['description'] ?? '')
-              )
-            );
+                $searchText = trim(strtolower(
+                  (string)($b['id'] ?? '') . ' ' .
+                  $serviceName . ' ' .
+                  (string)($b['location'] ?? '') . ' ' .
+                  (string)($b['customer_address'] ?? $b['user_address'] ?? '') . ' ' .
+                  (string)($b['description'] ?? '')
+                ));
           ?>
 
           <article
@@ -624,7 +623,8 @@ $serviceOptions = array_keys($serviceOptions);
                   $bookingTime = (string)($b['time'] ?? $b['work_time'] ?? '');
                 ?>
                 <p class="booking-date">📅 <?= View::e($bookingDate) ?> • <?= View::e($bookingTime) ?></p>
-                <p class="booking-location">📍 <?= View::e($b['location']) ?></p>
+                <?php $loc = trim((string)($b['location'] ?? '')); $cust = trim((string)($b['customer_address'] ?? $b['user_address'] ?? '')); ?>
+                <p class="booking-location">📍 <?= View::e($loc !== '' ? $loc : $cust) ?></p>
               </div>
 
               <div class="booking-head-right">

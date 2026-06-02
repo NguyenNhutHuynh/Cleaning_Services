@@ -753,7 +753,14 @@ $bookingStatusMap = [
 
                   <td data-label="Dịch vụ / Địa điểm">
                     <div class="booking-service"><?= View::e($b['service_name'] ?? '') ?></div>
-                    <div class="booking-location"><?= View::e($b['location']) ?></div>
+                    <?php
+                      $loc = trim((string)($b['location'] ?? ''));
+                      $cust = trim((string)($b['customer_address'] ?? $b['user_address'] ?? ''));
+                    ?>
+                    <div class="booking-location"><?= View::e($loc !== '' ? $loc : $cust) ?></div>
+                    <?php if ($loc !== '' && $cust !== '' && $loc !== $cust): ?>
+                      <div style="font-size:12px;color:#6b7b82"><?= View::e($cust) ?></div>
+                    <?php endif; ?>
                   </td>
 
                   <td data-label="Trạng thái">

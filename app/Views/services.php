@@ -29,6 +29,35 @@ if (!empty($services)) {
         </div>
     </header>
 
+    <section class="services-info-section" aria-label="Thông tin nổi bật">
+        <div class="services-info-card">
+            <h2>Vì sao nên chọn dịch vụ của chúng tôi?</h2>
+            <p>Chúng tôi tập trung vào trải nghiệm đặt lịch nhanh, quy trình rõ ràng và chất lượng vệ sinh ổn định.</p>
+
+            <div class="services-info-grid">
+                <div class="info-mini-card">
+                    <strong>👥 Nhân viên chuyên nghiệp</strong>
+                    <span>Được phân công theo từng loại dịch vụ và lịch làm việc phù hợp.</span>
+                </div>
+
+                <div class="info-mini-card">
+                    <strong>🧴 Dụng cụ an toàn</strong>
+                    <span>Ưu tiên quy trình vệ sinh sạch, gọn, phù hợp gia đình và văn phòng.</span>
+                </div>
+
+                <div class="info-mini-card">
+                    <strong>📋 Quy trình rõ ràng</strong>
+                    <span>Mỗi dịch vụ đều có mô tả, mức giá và thao tác đặt lịch minh bạch.</span>
+                </div>
+
+                <div class="info-mini-card">
+                    <strong>📞 Hỗ trợ nhanh</strong>
+                    <span>Có thể liên hệ tư vấn nếu bạn chưa biết nên chọn gói nào.</span>
+                </div>
+            </div>
+        </div>
+    </section>
+    
     <section class="services-search-wrap">
         <div class="services-search-head">
             <div>
@@ -78,34 +107,7 @@ if (!empty($services)) {
         </section>
     <?php endif; ?>
 
-    <section class="services-info-section" aria-label="Thông tin nổi bật">
-        <div class="services-info-card">
-            <h2>Vì sao nên chọn dịch vụ của chúng tôi?</h2>
-            <p>Chúng tôi tập trung vào trải nghiệm đặt lịch nhanh, quy trình rõ ràng và chất lượng vệ sinh ổn định.</p>
-
-            <div class="services-info-grid">
-                <div class="info-mini-card">
-                    <strong>👥 Nhân viên chuyên nghiệp</strong>
-                    <span>Được phân công theo từng loại dịch vụ và lịch làm việc phù hợp.</span>
-                </div>
-
-                <div class="info-mini-card">
-                    <strong>🧴 Dụng cụ an toàn</strong>
-                    <span>Ưu tiên quy trình vệ sinh sạch, gọn, phù hợp gia đình và văn phòng.</span>
-                </div>
-
-                <div class="info-mini-card">
-                    <strong>📋 Quy trình rõ ràng</strong>
-                    <span>Mỗi dịch vụ đều có mô tả, mức giá và thao tác đặt lịch minh bạch.</span>
-                </div>
-
-                <div class="info-mini-card">
-                    <strong>📞 Hỗ trợ nhanh</strong>
-                    <span>Có thể liên hệ tư vấn nếu bạn chưa biết nên chọn gói nào.</span>
-                </div>
-            </div>
-        </div>
-    </section>
+    
 
     <section class="services-list-section">
         <div class="section-heading">
