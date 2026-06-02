@@ -399,15 +399,30 @@ final class AuthController
             self::redirect('/');
         }
 
+        $role = (string)Auth::role();
+
         if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') {
             View::render('auth/logout-confirm', [
                 'csrf' => Csrf::token(),
-                'role' => Auth::role(),
+                'role' => $role,
             ]);
             return;
         }
 
         Auth::logout();
+
+        // Ensure admin/manager logout redirects include the admin login key
+        $config = require __DIR__ . '/../../config/app.php';
+        $adminKey = $config['admin']['login_key'] ?? 'admin-secret-key-2024';
+
+        if ($role === User::ROLE_MANAGER) {
+            self::redirect('/admin/login?type=manager&key=' . urlencode($adminKey));
+        }
+
+        if ($role === User::ROLE_ADMIN) {
+            self::redirect('/admin/login?type=admin&key=' . urlencode($adminKey));
+        }
+
         self::redirect('/');
     }
 

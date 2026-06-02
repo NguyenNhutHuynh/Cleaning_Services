@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Controllers\Manager;
 
 use App\Core\Auth;
+use App\Models\Booking;
+use App\Models\PaymentTransaction;
 use App\Models\User;
 
 /**
@@ -21,12 +23,6 @@ use App\Models\User;
  */
 abstract class BaseManagerController
 {
-    /**
-     * Kiểm tra xem người dùng hiện tại có phải là manager hoặc admin không.
-     * Nếu không, sẽ chuyển hướng đến trang đăng nhập.
-     * 
-     * @throws void Thực hiện chuyển hướng nếu không có quyền
-     */
     protected function requireManagerRole(): void
     {
         if (!Auth::isAuthenticated()) {
@@ -35,17 +31,10 @@ abstract class BaseManagerController
 
         $userRole = Auth::role();
         if ($userRole !== User::ROLE_MANAGER && $userRole !== User::ROLE_ADMIN) {
-            // Chuyển hướng dựa trên vai trò hiện tại
             $this->redirectToUserDashboard($userRole);
         }
     }
 
-    /**
-     * Kiểm tra xem người dùng có phải là admin không.
-     * Dùng cho các tính năng chỉ dành cho admin.
-     * 
-     * @throws void Thực hiện chuyển hướng nếu không phải admin
-     */
     protected function requireAdminRole(): void
     {
         if (!Auth::isAuthenticated() || Auth::role() !== User::ROLE_ADMIN) {
@@ -53,12 +42,6 @@ abstract class BaseManagerController
         }
     }
 
-    /**
-     * Kiểm tra xem người dùng có phải là manager không (không phải admin).
-     * Dùng cho các tính năng chỉ dành cho manager.
-     * 
-     * @throws void Thực hiện chuyển hướng nếu không phải manager
-     */
     protected function requireManagerRoleExclusive(): void
     {
         if (!Auth::isAuthenticated() || Auth::role() !== User::ROLE_MANAGER) {
@@ -66,15 +49,10 @@ abstract class BaseManagerController
         }
     }
 
-    /**
-     * Chuyển hướng người dùng đến trang chủ phù hợp với vai trò của họ.
-     * 
-     * @param string $role Vai trò của người dùng
-     */
     protected function redirectToUserDashboard(?string $role = null): void
     {
         $role = $role ?? Auth::role();
-        
+
         match ($role) {
             User::ROLE_ADMIN => $this->redirect('/admin/dashboard'),
             User::ROLE_MANAGER => $this->redirect('/manager/dashboard'),
@@ -83,12 +61,6 @@ abstract class BaseManagerController
         };
     }
 
-    /**
-     * Thiết lập thông báo session để hiển thị trên trang tiếp theo.
-     * 
-     * @param string $type Loại thông báo (success, error, info)
-     * @param string $message Nội dung thông báo
-     */
     protected function setSessionMessage(string $type, string $message): void
     {
         if (session_status() !== PHP_SESSION_ACTIVE) {
@@ -97,22 +69,12 @@ abstract class BaseManagerController
         $_SESSION[$type] = $message;
     }
 
-    /**
-     * Chuyển hướng đến một URL cụ thể.
-     * 
-     * @param string $path Đường dẫn để chuyển hướng
-     */
     protected function redirect(string $path): void
     {
         header('Location: ' . $path, true, 302);
         exit(0);
     }
 
-    /**
-     * Lấy danh sách các worker đang hoạt động.
-     * 
-     * @return array Danh sách worker
-     */
     protected function getActiveWorkers(): array
     {
         $allUsers = User::listAll();
@@ -123,11 +85,6 @@ abstract class BaseManagerController
         ));
     }
 
-    /**
-     * Lấy danh sách các customer đang hoạt động.
-     * 
-     * @return array Danh sách customer
-     */
     protected function getActiveCustomers(): array
     {
         $allUsers = User::listAll();
@@ -138,15 +95,33 @@ abstract class BaseManagerController
         ));
     }
 
-    /**
-     * Xác thực token CSRF từ request.
-     * 
-     * @param string|null $token Token CSRF
-     * @return bool True nếu token hợp lệ
-     */
+    protected function enrichBookingsWithPaymentStatus(array $bookings): array
+    {
+        foreach ($bookings as &$booking) {
+            $bookingId = (int)($booking['id'] ?? 0);
+            $payment = PaymentTransaction::getLatestCustomerByBookingId($bookingId);
+            $paidPayment = null;
+
+            $booking['is_customer_paid'] = PaymentTransaction::hasSuccessfulCustomerPayment($bookingId);
+            $booking['hasPaidPayment'] = $booking['is_customer_paid'];
+            $booking['customer_payment_status'] = $payment['status'] ?? 'pending';
+            $booking['customer_paid_amount'] = (float)($payment['amount'] ?? 0);
+            $booking['customer_paid_at'] = $payment['paid_at'] ?? null;
+
+            if (!empty($booking['is_customer_paid'])) {
+                $paidPayment = PaymentTransaction::getLatestPaidCustomerByBookingId($bookingId);
+            }
+
+            $booking['customer_paid_transaction_id'] = $paidPayment['id'] ?? null;
+        }
+        unset($booking);
+
+        return $bookings;
+    }
+
     protected function verifyCsrfToken(?string $token): bool
     {
-        $csrfClass = 'App\Core\Csrf';
+        $csrfClass = 'App\\Core\\Csrf';
         return class_exists($csrfClass) && $csrfClass::verify($token);
     }
 }

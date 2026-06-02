@@ -36,21 +36,15 @@ use App\Services\AutoAssignWorkerService;
  */
 final class ManagerController extends BaseManagerController
 {
-    /**
-     * Hiển thị trang Dashboard của Manager.
-     * Hiển thị tổng quan: đơn đặt, worker, customer, doanh thu (nếu admin).
-     */
     public function dashboard(): void
     {
         $this->requireManagerRole();
 
         $currentUser = User::findById((int)Auth::id());
         
-        // Lấy dữ liệu thống kê
         $bookings = Booking::getAll();
         $users = User::listAll();
         
-        // Tính toán thống kê
         $pendingBookings = count(array_filter($bookings, fn($b) => $b['status'] === 'pending'));
         $confirmedBookings = count(array_filter($bookings, fn($b) => $b['status'] === 'confirmed'));
         $inProgressBookings = count(array_filter($bookings, fn($b) => $b['status'] === 'in_progress'));
@@ -82,9 +76,6 @@ final class ManagerController extends BaseManagerController
         ]);
     }
 
-    /**
-     * Hiển thị danh sách tất cả Booking.
-     */
     public function bookings(): void
     {
         $this->requireManagerRole();
@@ -98,9 +89,6 @@ final class ManagerController extends BaseManagerController
         ]);
     }
 
-    /**
-     * Hiển thị chi tiết một Booking.
-     */
     public function bookingDetail(int $id): void
     {
         $this->requireManagerRole();
@@ -125,9 +113,6 @@ final class ManagerController extends BaseManagerController
         ]);
     }
 
-    /**
-     * Phân công Worker cho một Booking.
-     */
     public function assignBooking(): void
     {
         $this->requireManagerRole();
@@ -238,9 +223,6 @@ final class ManagerController extends BaseManagerController
         $this->redirect($redirectTo);
     }
 
-    /**
-     * Xác nhận một Booking.
-     */
     public function confirmBooking(): void
     {
         $this->requireManagerRole();
@@ -271,9 +253,6 @@ final class ManagerController extends BaseManagerController
         $this->redirect('/manager/bookings');
     }
 
-    /**
-     * Hủy một Booking.
-     */
     public function cancelBooking(): void
     {
         $this->requireManagerRole();
@@ -288,9 +267,6 @@ final class ManagerController extends BaseManagerController
         $this->redirect('/manager/bookings');
     }
 
-    /**
-     * Xem danh sách Worker.
-     */
     public function workers(): void
     {
         $this->requireManagerRole();
@@ -302,9 +278,6 @@ final class ManagerController extends BaseManagerController
         ]);
     }
 
-    /**
-     * Xem chi tiết một Worker.
-     */
     public function workerDetail(int $id): void
     {
         $this->requireManagerRole();
@@ -334,9 +307,6 @@ final class ManagerController extends BaseManagerController
         ]);
     }
 
-    /**
-     * Duyệt một Worker đang chờ xử lý.
-     */
     public function approveWorker(): void
     {
         $this->requireManagerRole();
@@ -351,9 +321,6 @@ final class ManagerController extends BaseManagerController
         $this->redirect('/manager/workers');
     }
 
-    /**
-     * Từ chối một Worker đang chờ xử lý.
-     */
     public function rejectWorker(): void
     {
         $this->requireManagerRole();
@@ -369,9 +336,6 @@ final class ManagerController extends BaseManagerController
         $this->redirect('/manager/workers');
     }
 
-    /**
-     * Xem danh sách Customer.
-     */
     public function customers(): void
     {
         $this->requireManagerRole();
@@ -382,9 +346,6 @@ final class ManagerController extends BaseManagerController
         ]);
     }
 
-    /**
-     * Xem chi tiết một Customer.
-     */
     public function customerDetail(int $id): void
     {
         $this->requireManagerRole();
@@ -399,11 +360,12 @@ final class ManagerController extends BaseManagerController
             $this->redirect('/manager/customers');
         }
 
+        // Lấy danh sách booking của customer và đánh dấu trạng thái thanh toán
         $bookings = Booking::getByUserId($id);
         foreach ($bookings as &$bk) {
             $bk['is_customer_paid'] = PaymentTransaction::hasSuccessfulCustomerPayment((int)($bk['id'] ?? 0));
-            if (empty($bk['worker_name']) && !empty($bk['assigned_worker_id'])) {
-                $bk['worker_name'] = 'Worker #' . $bk['assigned_worker_id'];
+            if (empty($bk['customer_name']) && !empty($bk['user_name'])) {
+                $bk['customer_name'] = $bk['user_name'];
             }
         }
 
@@ -412,17 +374,5 @@ final class ManagerController extends BaseManagerController
             'bookings' => $bookings,
             'csrf' => Csrf::token(),
         ]);
-    }
-
-    /**
-     * Làm phong phú booking với thông tin trạng thái thanh toán.
-     */
-    private function enrichBookingsWithPaymentStatus(array $bookings): array
-    {
-        foreach ($bookings as &$booking) {
-            $bookingId = (int)($booking['id'] ?? 0);
-            $booking['hasPaidPayment'] = PaymentTransaction::hasSuccessfulCustomerPayment($bookingId);
-        }
-        return $bookings;
     }
 }

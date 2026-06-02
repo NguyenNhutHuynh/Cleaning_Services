@@ -7,7 +7,7 @@ use App\Core\View;
     <h1>Bạn muốn đăng xuất khỏi hệ thống?</h1>
     <p>
       <?php if (($role ?? '') === 'admin' || ($role ?? '') === 'manager'): ?>
-        Bạn đang ở khu vực quản lý. Sau khi đăng xuất, bạn sẽ quay về trang chủ.
+        Bạn đang ở khu vực quản lý. Sau khi đăng xuất, bạn sẽ quay về form đăng nhập phù hợp.
       <?php else: ?>
         Phiên hiện tại sẽ kết thúc ngay khi xác nhận.
       <?php endif; ?>

@@ -59,7 +59,7 @@ use App\Models\PaymentTransaction;
       </thead>
       <tbody>
         <?php foreach ($bookings as $booking): ?>
-          <tr style="border-bottom: 1px solid #dcefe6;" data-customer="<?= View::e(strtolower($booking['customer_name'] ?? '')) ?>" data-service="<?= View::e(strtolower($booking['service_name'] ?? '')) ?>" data-status="<?= View::e($booking['status'] ?? '') ?>" data-payment="<?= ($booking['hasPaidPayment'] ?? false) ? 'paid' : 'unpaid' ?>">
+          <tr style="border-bottom: 1px solid #dcefe6;" data-customer="<?= View::e(strtolower($booking['customer_name'] ?? '')) ?>" data-service="<?= View::e(strtolower($booking['service_name'] ?? '')) ?>" data-status="<?= View::e($booking['status'] ?? '') ?>" data-payment="<?= (!empty($booking['is_customer_paid']) || !empty($booking['hasPaidPayment'])) ? 'paid' : 'unpaid' ?>">
             <td style="padding: 16px; color: #546e7a;"><?= View::e($booking['customer_name'] ?? 'N/A') ?></td>
             <td style="padding: 16px; color: #546e7a;"><?= View::e($booking['service_name'] ?? 'N/A') ?></td>
             <td style="padding: 16px; color: #546e7a;"><?= View::e(($booking['date'] ?? $booking['booking_date'] ?? 'N/A')) ?></td>
@@ -83,7 +83,7 @@ use App\Models\PaymentTransaction;
               </span>
             </td>
             <td style="padding: 16px;">
-              <?php if ($booking['hasPaidPayment'] ?? false): ?>
+              <?php if (!empty($booking['is_customer_paid']) || !empty($booking['hasPaidPayment'])): ?>
                 <span style="color: #28a745; font-weight: 600;">✓ Đã thanh toán</span>
               <?php else: ?>
                 <span style="color: #dc3545; font-weight: 600;">✗ Chưa thanh toán</span>
